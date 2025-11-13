@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
+import random
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -12,6 +13,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'state.json')
 METADATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metadata.json')
+DEVICES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'devices.json')
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -35,12 +37,13 @@ def save_metadata(metadata):
     with open(METADATA_FILE, 'w') as f:
         json.dump(metadata, f, indent=2)
 
-def add_image_metadata(filename, uploader_ip):
+def add_image_metadata(filename, uploader_ip, allowed_devices=None):
     """Add metadata for a newly uploaded image"""
     metadata = load_metadata()
     metadata['images'][filename] = {
         'uploader_ip': uploader_ip,
-        'upload_time': datetime.now().isoformat()
+        'upload_time': datetime.now().isoformat(),
+        'allowed_devices': allowed_devices if allowed_devices is not None else []
     }
     save_metadata(metadata)
 
@@ -113,7 +116,8 @@ def get_image_list(filter_user=None):
                     'size': stat.st_size,
                     'uploaded': img_metadata.get('upload_time', datetime.fromtimestamp(stat.st_mtime).isoformat()),
                     'uploader_ip': uploader_ip,
-                    'uploader_name': get_user_name(uploader_ip)
+                    'uploader_name': get_user_name(uploader_ip),
+                    'allowed_devices': img_metadata.get('allowed_devices', [])
                 })
 
     images.sort(key=lambda x: x['uploaded'], reverse=True)
@@ -135,6 +139,111 @@ def set_current_image(filename):
     state = {'current_image': filename, 'updated': datetime.now().isoformat()}
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
+
+# Device Management Functions
+
+def load_devices():
+    """Load device registry from file"""
+    if os.path.exists(DEVICES_FILE):
+        try:
+            with open(DEVICES_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {'devices': {}}
+
+def save_devices(devices_data):
+    """Save device registry to file"""
+    with open(DEVICES_FILE, 'w') as f:
+        json.dump(devices_data, f, indent=2)
+
+def register_device(device_id, name, device_type='display', metadata=None):
+    """Register or update a device"""
+    devices_data = load_devices()
+
+    is_new = device_id not in devices_data['devices']
+
+    if is_new:
+        devices_data['devices'][device_id] = {
+            'name': name,
+            'device_type': device_type,
+            'registered': datetime.now().isoformat(),
+            'last_seen': datetime.now().isoformat(),
+            'metadata': metadata or {}
+        }
+    else:
+        # Update existing device
+        devices_data['devices'][device_id]['name'] = name
+        devices_data['devices'][device_id]['device_type'] = device_type
+        devices_data['devices'][device_id]['last_seen'] = datetime.now().isoformat()
+        if metadata:
+            devices_data['devices'][device_id]['metadata'] = metadata
+
+    save_devices(devices_data)
+    return is_new
+
+def update_device_last_seen(device_id):
+    """Update the last seen timestamp for a device"""
+    devices_data = load_devices()
+    if device_id in devices_data['devices']:
+        devices_data['devices'][device_id]['last_seen'] = datetime.now().isoformat()
+        save_devices(devices_data)
+
+def get_device(device_id):
+    """Get a specific device by ID"""
+    devices_data = load_devices()
+    return devices_data['devices'].get(device_id)
+
+def get_all_devices():
+    """Get all registered devices"""
+    devices_data = load_devices()
+    return devices_data['devices']
+
+def delete_device(device_id):
+    """Remove a device from the registry"""
+    devices_data = load_devices()
+    if device_id in devices_data['devices']:
+        del devices_data['devices'][device_id]
+        save_devices(devices_data)
+        return True
+    return False
+
+def update_image_devices(filename, allowed_devices):
+    """Update the list of devices allowed to view an image"""
+    metadata = load_metadata()
+    if filename in metadata['images']:
+        metadata['images'][filename]['allowed_devices'] = allowed_devices
+        save_metadata(metadata)
+        return True
+    return False
+
+def get_images_for_device(device_id):
+    """Get all images that a specific device is allowed to view"""
+    metadata = load_metadata()
+    images = []
+
+    if os.path.exists(UPLOAD_FOLDER):
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if allowed_file(filename):
+                img_metadata = metadata['images'].get(filename, {})
+                allowed_devices = img_metadata.get('allowed_devices', [])
+
+                # Check if this device is allowed to view this image
+                if device_id in allowed_devices:
+                    filepath = os.path.join(UPLOAD_FOLDER, filename)
+                    stat = os.stat(filepath)
+                    uploader_ip = img_metadata.get('uploader_ip', 'unknown')
+
+                    images.append({
+                        'filename': filename,
+                        'size': stat.st_size,
+                        'uploaded': img_metadata.get('upload_time', datetime.fromtimestamp(stat.st_mtime).isoformat()),
+                        'uploader_ip': uploader_ip,
+                        'uploader_name': get_user_name(uploader_ip)
+                    })
+
+    images.sort(key=lambda x: x['uploaded'], reverse=True)
+    return images
 
 @app.route('/')
 def index():
@@ -291,6 +400,138 @@ def display_image(filename):
             return jsonify({'error': 'Failed to display image'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Device Management API Endpoints
+
+@app.route('/api/devices/register', methods=['POST'])
+def register_device_endpoint():
+    """API endpoint to register or update a device"""
+    data = request.get_json()
+
+    device_id = data.get('device_id', '').strip()
+    name = data.get('name', '').strip()
+    device_type = data.get('device_type', 'display').strip()
+    metadata = data.get('metadata', {})
+
+    if not device_id:
+        return jsonify({'error': 'device_id is required'}), 400
+
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+
+    if len(name) > 100:
+        return jsonify({'error': 'Name too long (max 100 characters)'}), 400
+
+    is_new = register_device(device_id, name, device_type, metadata)
+
+    return jsonify({
+        'success': True,
+        'device_id': device_id,
+        'is_new': is_new,
+        'message': 'Device registered successfully' if is_new else 'Device updated successfully'
+    })
+
+@app.route('/api/devices')
+def list_devices():
+    """API endpoint to list all registered devices"""
+    devices = get_all_devices()
+    # Convert to list format with device_id included
+    devices_list = [
+        {'device_id': device_id, **device_data}
+        for device_id, device_data in devices.items()
+    ]
+    return jsonify({'devices': devices_list})
+
+@app.route('/api/devices/<device_id>', methods=['DELETE'])
+def delete_device_endpoint(device_id):
+    """API endpoint to delete a device"""
+    if delete_device(device_id):
+        return jsonify({'success': True, 'message': 'Device deleted'})
+    else:
+        return jsonify({'error': 'Device not found'}), 404
+
+@app.route('/api/devices/<device_id>/images')
+def get_device_images(device_id):
+    """API endpoint to get all images for a specific device"""
+    # Update last seen
+    update_device_last_seen(device_id)
+
+    # Check if device exists
+    device = get_device(device_id)
+    if not device:
+        return jsonify({'error': 'Device not found'}), 404
+
+    images = get_images_for_device(device_id)
+    return jsonify({
+        'device_id': device_id,
+        'device_name': device['name'],
+        'images': images,
+        'count': len(images)
+    })
+
+@app.route('/api/devices/<device_id>/next')
+def get_next_image_for_device(device_id):
+    """API endpoint to get next random image for a device"""
+    # Update last seen
+    update_device_last_seen(device_id)
+
+    # Check if device exists
+    device = get_device(device_id)
+    if not device:
+        return jsonify({'error': 'Device not found'}), 404
+
+    images = get_images_for_device(device_id)
+
+    if not images:
+        return jsonify({'error': 'No images available for this device'}), 404
+
+    # Get current image from state (if this device tracks it)
+    current = get_current_image()
+
+    # Filter out current image if possible
+    available = [img for img in images if img['filename'] != current]
+    if not available:
+        available = images  # If all we have is the current image, use it
+
+    # Select random image
+    next_image = random.choice(available)
+
+    return jsonify({
+        'device_id': device_id,
+        'image': next_image,
+        'url': f"/uploads/{next_image['filename']}"
+    })
+
+@app.route('/api/images/<filename>/devices', methods=['POST'])
+def update_image_devices_endpoint(filename):
+    """API endpoint to update which devices can view an image"""
+    filename = secure_filename(filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'Image not found'}), 404
+
+    data = request.get_json()
+    allowed_devices = data.get('allowed_devices', [])
+
+    if not isinstance(allowed_devices, list):
+        return jsonify({'error': 'allowed_devices must be an array'}), 400
+
+    # Validate that all device IDs exist
+    all_devices = get_all_devices()
+    for device_id in allowed_devices:
+        if device_id not in all_devices:
+            return jsonify({'error': f'Device not found: {device_id}'}), 404
+
+    if update_image_devices(filename, allowed_devices):
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'allowed_devices': allowed_devices,
+            'message': 'Image device permissions updated'
+        })
+    else:
+        return jsonify({'error': 'Image not found'}), 404
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

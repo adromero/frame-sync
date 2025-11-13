@@ -5,6 +5,7 @@ import json
 import random
 from datetime import datetime
 import logging
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,11 +15,119 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 STATE_FILE = os.path.join(BASE_DIR, 'state.json')
 DISPLAY_SCRIPT = os.path.join(BASE_DIR, 'display_image.py')
+METADATA_FILE = os.path.join(BASE_DIR, 'metadata.json')
+DEVICES_FILE = os.path.join(BASE_DIR, 'devices.json')
+DEVICE_ID_FILE = os.path.join(BASE_DIR, 'epaper_device_id.txt')
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 
+# E-Paper device configuration
+EPAPER_DEVICE_NAME = "E-Paper Frame"
+EPAPER_DEVICE_TYPE = "epaper"
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_or_create_device_id():
+    """Get the device ID for this e-paper frame, creating one if it doesn't exist"""
+    if os.path.exists(DEVICE_ID_FILE):
+        try:
+            with open(DEVICE_ID_FILE, 'r') as f:
+                device_id = f.read().strip()
+                if device_id:
+                    return device_id
+        except:
+            pass
+
+    # Generate a new device ID
+    device_id = str(uuid.uuid4())
+    with open(DEVICE_ID_FILE, 'w') as f:
+        f.write(device_id)
+    logger.info(f"Generated new device ID: {device_id}")
+    return device_id
+
+def register_epaper_device():
+    """Register this e-paper device in the device registry"""
+    device_id = get_or_create_device_id()
+
+    # Load or create devices registry
+    if os.path.exists(DEVICES_FILE):
+        try:
+            with open(DEVICES_FILE, 'r') as f:
+                devices_data = json.load(f)
+        except:
+            devices_data = {'devices': {}}
+    else:
+        devices_data = {'devices': {}}
+
+    # Register or update device
+    is_new = device_id not in devices_data['devices']
+
+    if is_new:
+        devices_data['devices'][device_id] = {
+            'name': EPAPER_DEVICE_NAME,
+            'device_type': EPAPER_DEVICE_TYPE,
+            'registered': datetime.now().isoformat(),
+            'last_seen': datetime.now().isoformat(),
+            'metadata': {}
+        }
+        logger.info(f"Registered new e-paper device: {device_id}")
+
+        # On first registration, assign all existing images to this device
+        assign_all_images_to_device(device_id)
+    else:
+        devices_data['devices'][device_id]['last_seen'] = datetime.now().isoformat()
+
+    # Save devices registry
+    with open(DEVICES_FILE, 'w') as f:
+        json.dump(devices_data, f, indent=2)
+
+    return device_id
+
+def assign_all_images_to_device(device_id):
+    """Assign all existing images to a newly registered device (for backward compatibility)"""
+    metadata = load_metadata()
+    updated = False
+
+    for filename in metadata['images']:
+        allowed_devices = metadata['images'][filename].get('allowed_devices', [])
+        # Add this device if it's not already in the list
+        if device_id not in allowed_devices:
+            allowed_devices.append(device_id)
+            metadata['images'][filename]['allowed_devices'] = allowed_devices
+            updated = True
+
+    if updated:
+        with open(METADATA_FILE, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        logger.info(f"Assigned {len(metadata['images'])} existing images to device {device_id}")
+
+def load_metadata():
+    """Load image metadata from file"""
+    if os.path.exists(METADATA_FILE):
+        try:
+            with open(METADATA_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {'images': {}, 'users': {}}
+
+def get_images_for_device(device_id):
+    """Get all images that this device is allowed to view"""
+    metadata = load_metadata()
+    images = []
+
+    if os.path.exists(UPLOAD_FOLDER):
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if allowed_file(filename):
+                img_metadata = metadata['images'].get(filename, {})
+                allowed_devices = img_metadata.get('allowed_devices', [])
+
+                # Check if this device is allowed to view this image
+                if device_id in allowed_devices:
+                    images.append(filename)
+
+    return sorted(images)
 
 def get_current_image():
     """Get the currently displayed image from state file"""
@@ -49,12 +158,13 @@ def get_all_images():
                 images.append(filename)
     return sorted(images)
 
-def get_next_image():
+def get_next_image(device_id):
     """Get the next image to display (random selection excluding current)"""
-    all_images = get_all_images()
+    # Get images this device is allowed to view
+    all_images = get_images_for_device(device_id)
 
     if not all_images:
-        logger.info("No images available to display")
+        logger.info("No images available for this device to display")
         return None
 
     if len(all_images) == 1:
@@ -77,7 +187,11 @@ def get_next_image():
 def rotate_image():
     """Rotate to the next image and display it"""
     try:
-        next_image = get_next_image()
+        # Register this device
+        device_id = register_epaper_device()
+        logger.info(f"E-Paper device ID: {device_id}")
+
+        next_image = get_next_image(device_id)
 
         if not next_image:
             logger.warning("No images to display")
