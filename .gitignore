@@ -6,6 +6,8 @@ uploads/*
 state.json
 current_image.json
 metadata.json
+devices.json
+epaper_device_id.txt
 
 # Python
 __pycache__/
