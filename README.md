@@ -5,14 +5,17 @@ A web-based photo frame server that can serve images to multiple displays on you
 ## Features
 
 - 📱 Mobile-friendly web interface for uploading photos
-- 👥 Multi-user support with IP-based user tracking
+- 👥 Multi-user support with IP-based user tracking and custom display names
 - 🔍 Filter images by user (all photos, my photos, or specific users)
 - 📺 Multi-device support - serve images to any display via HTTP API
 - 🔐 Per-image device permissions - control which displays can see each image
+- ✅ Device selection on upload - assign images to displays immediately when uploading
+- 🎯 Device management - register, view, and delete display devices through the web UI
 - 🔄 Automatic hourly image rotation (for e-paper displays)
 - 🎨 Optimized image processing for 7-color e-paper displays
 - 🌐 Accessible via local network or Tailscale
 - 🚀 Auto-starts on boot via systemd
+- 🔒 HTTPS support with SSL certificates
 
 ## Hardware Requirements
 
@@ -40,52 +43,89 @@ git clone https://github.com/waveshare/e-Paper
 ### 2. Install Python Dependencies
 
 ```bash
-cd ~/epaper-frame
+cd ~/frame-sync
 pip3 install -r requirements.txt
 ```
 
-### 3. Install Systemd Services
+### 3. (Optional) Setup HTTPS with SSL Certificates
+
+To enable HTTPS, place your SSL certificate files in the project directory:
+- `cert.pem` - SSL certificate
+- `key.pem` - Private key
+
+The server will automatically use HTTPS if these files exist, otherwise it falls back to HTTP.
+
+### 4. Install Systemd Service
 
 ```bash
-sudo cp epaper-frame.service /etc/systemd/system/
+sudo cp frame-sync.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable frame-sync.service
+sudo systemctl start frame-sync.service
+```
+
+For e-paper displays with automatic rotation:
+```bash
 sudo cp epaper-rotate.service /etc/systemd/system/
 sudo cp epaper-rotate.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable epaper-frame.service
 sudo systemctl enable epaper-rotate.timer
-sudo systemctl start epaper-frame.service
 sudo systemctl start epaper-rotate.timer
 ```
 
-### 4. Access the Web Interface
+### 5. Access the Web Interface
 
 The server runs on port 5000:
-- **Local network**: `http://<raspberry-pi-ip>:5000`
-- **Tailscale**: `http://<tailscale-ip>:5000`
+- **Local network (HTTP)**: `http://<raspberry-pi-ip>:5000`
+- **Local network (HTTPS)**: `https://<raspberry-pi-ip>:5000`
+- **Tailscale (HTTP)**: `http://<tailscale-ip>:5000`
+- **Tailscale (HTTPS)**: `https://<tailscale-ip>:5000`
 
 ## Usage
 
 ### Web Interface
 
+#### Uploading Photos
+
 1. Open the web interface on your phone or computer
-2. Upload photos using the upload button
-3. Manage which devices can see each image using the device assignment controls
-4. For e-paper displays: Images will automatically rotate every hour
-5. Manually display any image using the "Display" button (for e-paper)
+2. Click or drag images to the upload area
+3. **Select which displays should receive the images** using the device selection panel
+   - Check individual devices or use "All Displays" to select all
+   - Click "Upload" to confirm or "Cancel" to abort
+4. Images will be uploaded with the selected device permissions
+
+#### Managing Devices
+
+1. Navigate to the **Devices** section
+2. **Add a device**: Enter a name and click "Add New Device" (UUID auto-generated)
+3. **View devices**: See all registered devices with their last-seen timestamps
+4. **Delete devices**: Remove devices you no longer need
+
+#### Managing Image Permissions
+
+1. Click on any image in the gallery to open the detail modal
+2. In the **Allowed Devices** section, check/uncheck devices
+3. Click "Save Devices" to update which displays can access the image
+
+#### Setting Your Display Name
+
+1. After your first upload, your IP address will appear in the "Your Identity" section
+2. Click the input field or "Change Name" button
+3. Enter your preferred display name (e.g., "Dad", "Mom", "Alex")
+4. Click "Save" - your name will now appear instead of your IP address
 
 ### Multi-User Features
 
-Each uploader is identified by their IP address:
+Each uploader is identified by their IP address and optional display name:
 
-- **Your IP Badge**: Shows your current IP address (appears after first upload)
+- **Your Identity**: Shows your IP address and allows you to set a custom display name
 - **Filter Options**:
   - **All Photos**: View all images from all users
   - **My Photos**: View only images you uploaded
-  - **Specific User**: Filter by a specific user's IP address
-- **Image Attribution**: Each image shows who uploaded it ("Your Photo" or "By [IP]")
-- **User List**: The filter dropdown shows all users and their photo counts
+  - **Specific User**: Filter by a specific user (shows name and photo count)
+- **Image Attribution**: Each image shows who uploaded it with their display name
+- **User List**: The filter dropdown shows all users with their names and photo counts
 
-Perfect for families or roommates sharing the same photo frame!
+Perfect for families or roommates sharing photo frames across multiple displays!
 
 ### Multi-Device API
 
@@ -94,42 +134,78 @@ Connect any display device to fetch images via the HTTP API. See [multi-device-i
 ## File Structure
 
 ```
-epaper-frame/
-├── server.py              # Flask web server with multi-user support
-├── display_image.py       # Display image on e-paper
-├── rotate_image.py        # Hourly rotation logic
-├── metadata.json          # User/image metadata (gitignored)
+frame-sync/
+├── server.py                 # Flask web server with multi-user and multi-device support
+├── display_image.py          # Display image on e-paper (optional)
+├── rotate_image.py           # Hourly rotation logic (optional)
 ├── templates/
-│   └── index.html        # Web interface with user filtering
-├── static/               # Static assets (CSS/JS inline)
-├── uploads/              # Uploaded images (gitignored)
-├── epaper-frame.service  # Systemd service for web server
-├── epaper-rotate.service # Systemd service for rotation
-└── epaper-rotate.timer   # Systemd timer (runs hourly)
+│   └── index.html           # Web interface with device management and upload flow
+├── uploads/                 # Uploaded images (gitignored)
+├── metadata.json            # Image and user metadata (gitignored)
+├── devices.json             # Device registry (gitignored)
+├── state.json               # Current image state (gitignored)
+├── epaper_device_id.txt     # Persistent e-paper device UUID (gitignored)
+├── cert.pem                 # SSL certificate (optional, gitignored)
+├── key.pem                  # SSL private key (optional, gitignored)
+├── frame-sync.service       # Systemd service for web server
+├── epaper-rotate.service    # Systemd service for rotation (optional)
+├── epaper-rotate.timer      # Systemd timer for hourly rotation (optional)
+├── requirements.txt         # Python dependencies
+└── README.md               # This file
 ```
 
 ## Configuration
 
-Edit these variables in the Python files if needed:
+### Server Configuration
 
-- **Port**: Change `PORT` in `server.py` (default: 5000)
-- **Display dimensions** (e-paper only): 600x448 (hardcoded for Waveshare 5.65")
-- **Rotation interval** (e-paper only): Edit `epaper-rotate.timer` (default: hourly)
-- **Path to e-Paper library** (e-paper only): `/home/r2/e-Paper/RaspberryPi_JetsonNano/python/lib`
+Edit these settings in `server.py`:
+- **Port**: Default is 5000 (line 574-576)
+- **Max file size**: 16MB (line 14)
+- **Allowed file types**: PNG, JPG, JPEG, GIF, BMP (line 13)
+
+### HTTPS/SSL Configuration
+
+- Place `cert.pem` and `key.pem` in the project root directory
+- Server automatically detects and enables HTTPS if certificates exist
+- Falls back to HTTP if certificates are not present
+
+### E-Paper Display Configuration (Optional)
+
+Only needed if using a physical e-paper display:
+- **Display dimensions**: 600x448 (hardcoded for Waveshare 5.65")
+- **Rotation interval**: Edit `epaper-rotate.timer` (default: hourly)
+- **Path to e-Paper library**: Update path in `display_image.py` if needed
 
 ## Troubleshooting
 
 ### Check Service Status
 ```bash
-sudo systemctl status epaper-frame.service
-sudo systemctl status epaper-rotate.timer
+sudo systemctl status frame-sync.service
+sudo systemctl status epaper-rotate.timer  # if using e-paper
 ```
 
 ### View Logs
 ```bash
-journalctl -u epaper-frame.service -f
-journalctl -u epaper-rotate.service -f
+journalctl -u frame-sync.service -f
+journalctl -u epaper-rotate.service -f  # if using e-paper
 ```
+
+### Common Issues
+
+**Device selection not working after upload:**
+- Make sure you're clicking the "Upload" button after selecting devices
+- The device selection panel should appear after choosing files
+- Check browser console for any JavaScript errors
+
+**Images not appearing on devices:**
+- Verify the device is registered: Check the Devices section in web UI
+- Ensure images are assigned to the device: Click image and check "Allowed Devices"
+- For API clients: Verify device ID matches exactly
+
+**HTTPS not working:**
+- Verify `cert.pem` and `key.pem` exist in the project directory
+- Check certificate validity and permissions
+- Review logs: `journalctl -u frame-sync.service -f`
 
 ### Manual Image Display
 ```bash

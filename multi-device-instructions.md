@@ -21,9 +21,10 @@ Images are assigned to devices through the web interface or API. Only devices th
 - Any device type can be registered: e-paper displays, tablets, smart displays, LCD screens, etc.
 
 ### Image Permissions
-- By default, newly uploaded images are not assigned to any devices
-- You must explicitly select which devices can view each image
-- This gives you fine-grained control over content distribution
+- When uploading images, you select which devices should receive them via the upload flow
+- You can also update device permissions after upload through the image detail modal
+- If no devices are selected during upload, the image won't be assigned to any devices
+- This gives you fine-grained control over content distribution across your displays
 
 ## Web Interface
 
@@ -35,18 +36,27 @@ Images are assigned to devices through the web interface or API. Only devices th
    - Click "Add New Device"
    - A UUID will be automatically generated for the device
 
-2. **Assign Images to Devices**:
+2. **Assign Images on Upload**:
+   - Select or drag images to the upload area
+   - A device selection panel will appear with all registered devices
+   - Check the devices that should receive these images (or select "All Displays")
+   - Click "Upload" to confirm, or "Cancel" to abort
+   - Images will be uploaded with the selected device permissions
+
+3. **Update Image Permissions After Upload**:
    - Click on any image in the gallery to open the modal
-   - In the "Allowed Devices" section, check the devices that should have access
+   - In the "Allowed Devices" section, check/uncheck devices
    - Click "Save Devices" to update permissions
 
-3. **Delete a Device**:
-   - Click the "Delete" button next to any device
+4. **Delete a Device**:
+   - Click the "Delete" button next to any device in the Devices section
    - This removes the device but does not delete any images
 
 ## API Reference
 
-Base URL: `http://YOUR_IP:5000`
+Base URL: `http://YOUR_IP:5000` or `https://YOUR_IP:5000` (if HTTPS is configured)
+
+**Note**: All API endpoints support both HTTP and HTTPS depending on your server configuration.
 
 ### Device Management
 
