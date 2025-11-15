@@ -251,7 +251,17 @@ def get_images_for_device(device_id):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    response = render_template('index.html')
+    return response
+
+@app.after_request
+def add_no_cache_headers(response):
+    """Add headers to prevent caching of HTML pages"""
+    if response.content_type and 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+    return response
 
 @app.route('/api/images')
 def list_images():
@@ -353,8 +363,16 @@ def upload_file():
         # If behind a proxy, get the real IP
         uploader_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
 
-    # Store metadata
-    add_image_metadata(filename, uploader_ip)
+    # Get allowed devices from form data
+    allowed_devices = []
+    if 'allowed_devices' in request.form:
+        try:
+            allowed_devices = json.loads(request.form['allowed_devices'])
+        except json.JSONDecodeError:
+            pass  # If parsing fails, just use empty list
+
+    # Store metadata with allowed devices
+    add_image_metadata(filename, uploader_ip, allowed_devices)
 
     return jsonify({
         'success': True,
@@ -546,5 +564,13 @@ if __name__ == '__main__':
     # Create upload directory if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+    # SSL certificate paths
+    cert_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cert.pem')
+    key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'key.pem')
+
     # Run on all interfaces so it's accessible from network
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Use HTTPS if certificates exist
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        app.run(host='0.0.0.0', port=5000, debug=False, ssl_context=(cert_file, key_file))
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=False)

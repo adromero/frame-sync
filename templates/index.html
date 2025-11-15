@@ -477,6 +477,21 @@
             to { transform: rotate(360deg); }
         }
 
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #uploadDeviceSelection {
+            animation: slideDown 0.4s ease-out;
+        }
+
         /* Devices styles */
         .devices-list {
             margin-bottom: 15px;
@@ -625,6 +640,23 @@
                 <div class="upload-hint">Supports PNG, JPG, GIF, and BMP (max 16MB)</div>
                 <input type="file" id="fileInput" accept="image/*" multiple>
             </div>
+            <div id="uploadDeviceSelection" style="display: none; margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%); border-radius: 12px; border: 3px solid #14b8a6; box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);">
+                <h3 style="margin: 0 0 15px 0; font-size: 1.1em; color: #0d9488; font-weight: 700;">📱 Select Displays for Upload</h3>
+                <p style="margin: 0 0 15px 0; color: #0f766e; font-size: 0.9em;">Choose which devices should receive these images:</p>
+                <div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #0d9488; font-size: 1em;">
+                        <input type="checkbox" id="selectAllDisplays" style="cursor: pointer; width: 20px; height: 20px;">
+                        <span>✓ All Displays</span>
+                    </label>
+                </div>
+                <div id="uploadDevicesList" style="display: grid; gap: 10px; max-height: 180px; overflow-y: auto; padding: 10px; background: white; border-radius: 8px;">
+                    <!-- Device checkboxes will be populated here -->
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn" id="cancelUploadBtn" style="background: linear-gradient(135deg, #999 0%, #777 100%); padding: 12px 25px; font-size: 1em;">Cancel</button>
+                    <button class="btn" id="confirmUploadBtn" style="padding: 12px 30px; font-size: 1.05em; font-weight: 700; box-shadow: 0 4px 12px rgba(20, 184, 166, 0.4);">Upload Images →</button>
+                </div>
+            </div>
             <div id="message" class="message"></div>
         </div>
 
@@ -743,6 +775,7 @@
         let allDevices = [];
         let currentImageFilename = null;
         let currentModalImage = null;
+        let pendingFiles = null;
 
         // Modal event listeners
         modalClose.addEventListener('click', closeModal);
@@ -775,17 +808,38 @@
             e.preventDefault();
             uploadArea.classList.remove('dragover');
             const files = e.dataTransfer.files;
-            handleFiles(files);
+            if (files.length > 0) {
+                // Store files and show device selection UI
+                pendingFiles = files;
+                const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+                uploadDeviceSelection.style.display = 'block';
+                populateUploadDevicesList();
+            }
         });
 
         fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
+            if (e.target.files.length > 0) {
+                // Store files and show device selection UI
+                pendingFiles = e.target.files;
+                const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+                uploadDeviceSelection.style.display = 'block';
+                populateUploadDevicesList();
+            }
         });
 
         async function handleFiles(files) {
             for (let file of files) {
                 await uploadFile(file);
             }
+
+            // Hide device selection UI after upload
+            const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+            uploadDeviceSelection.style.display = 'none';
+
+            // Reset file input and pending files
+            fileInput.value = '';
+            pendingFiles = null;
+
             loadImages();
             loadUsers(); // Refresh user list after uploads
         }
@@ -793,6 +847,12 @@
         async function uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
+
+            // Get selected devices
+            const selectedDevices = getSelectedUploadDevices();
+            if (selectedDevices.length > 0) {
+                formData.append('allowed_devices', JSON.stringify(selectedDevices));
+            }
 
             try {
                 showMessage(`Uploading ${file.name}...`, 'success');
@@ -804,7 +864,8 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showMessage(`${file.name} uploaded successfully!`, 'success');
+                    const deviceMsg = selectedDevices.length > 0 ? ` (enabled on ${selectedDevices.length} display${selectedDevices.length > 1 ? 's' : ''})` : '';
+                    showMessage(`${file.name} uploaded successfully!${deviceMsg}`, 'success');
 
                     // Update current user IP if we got it from the response
                     if (data.uploader_ip && !currentUserIp) {
@@ -1193,6 +1254,12 @@
                         devicesList.appendChild(deviceItem);
                     });
                 }
+
+                // Update upload device selection list if it's visible
+                const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+                if (uploadDeviceSelection && uploadDeviceSelection.style.display !== 'none') {
+                    populateUploadDevicesList();
+                }
             } catch (error) {
                 console.error('Failed to load devices:', error);
                 devicesList.innerHTML = '<p style="color: #f44336; text-align: center; padding: 20px;">Failed to load devices</p>';
@@ -1296,6 +1363,78 @@
             }
         }
 
+        // Upload Device Selection Functions
+        function populateUploadDevicesList() {
+            const uploadDevicesList = document.getElementById('uploadDevicesList');
+            uploadDevicesList.innerHTML = '';
+
+            if (allDevices.length === 0) {
+                uploadDevicesList.innerHTML = '<p style="color: #888; padding: 10px; margin: 0; font-size: 0.9em;">No devices registered yet. Add a device below first.</p>';
+                return;
+            }
+
+            allDevices.forEach(device => {
+                const label = document.createElement('label');
+                label.style.cssText = 'display: flex; align-items: center; gap: 10px; cursor: pointer; color: #333; padding: 10px; background: #f8f9fa; border-radius: 6px; transition: all 0.2s; border: 2px solid transparent;';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'upload-device-checkbox';
+                checkbox.value = device.device_id;
+                checkbox.style.cssText = 'cursor: pointer; width: 18px; height: 18px;';
+
+                const span = document.createElement('span');
+                span.style.cssText = 'font-weight: 600; font-size: 0.95em;';
+                span.textContent = `${device.name}`;
+
+                label.appendChild(checkbox);
+                label.appendChild(span);
+
+                // Add hover effect
+                label.addEventListener('mouseenter', () => {
+                    label.style.background = '#e8f5e9';
+                    label.style.borderColor = '#14b8a6';
+                });
+                label.addEventListener('mouseleave', () => {
+                    label.style.background = '#f8f9fa';
+                    label.style.borderColor = 'transparent';
+                });
+
+                uploadDevicesList.appendChild(label);
+            });
+        }
+
+        function getSelectedUploadDevices() {
+            const checkboxes = document.querySelectorAll('.upload-device-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        function setupUploadDeviceSelection() {
+            const selectAllDisplays = document.getElementById('selectAllDisplays');
+            const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+
+            // Show device selection when file is selected
+            const fileInput = document.getElementById('fileInput');
+            const originalChangeHandler = fileInput.onchange;
+
+            // Handle select all checkbox
+            selectAllDisplays.addEventListener('change', (e) => {
+                const checkboxes = document.querySelectorAll('.upload-device-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = e.target.checked;
+                });
+            });
+
+            // Update select all checkbox when individual checkboxes change
+            document.getElementById('uploadDevicesList').addEventListener('change', (e) => {
+                if (e.target.classList.contains('upload-device-checkbox')) {
+                    const allCheckboxes = document.querySelectorAll('.upload-device-checkbox');
+                    const checkedCheckboxes = document.querySelectorAll('.upload-device-checkbox:checked');
+                    selectAllDisplays.checked = allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+                }
+            });
+        }
+
         function renderDeviceCheckboxes(allowedDevices = []) {
             modalDevicesList.innerHTML = '';
 
@@ -1373,6 +1512,9 @@
             // Load devices
             await loadDevices();
 
+            // Setup upload device selection
+            setupUploadDeviceSelection();
+
             // Load server info for footer
             await loadServerInfo();
 
@@ -1411,6 +1553,21 @@
             if (e.key === 'Enter') {
                 addDevice();
             }
+        });
+
+        // Upload confirmation buttons
+        document.getElementById('confirmUploadBtn').addEventListener('click', () => {
+            if (pendingFiles && pendingFiles.length > 0) {
+                handleFiles(pendingFiles);
+            }
+        });
+
+        document.getElementById('cancelUploadBtn').addEventListener('click', () => {
+            // Hide device selection UI and clear pending files
+            const uploadDeviceSelection = document.getElementById('uploadDeviceSelection');
+            uploadDeviceSelection.style.display = 'none';
+            pendingFiles = null;
+            fileInput.value = '';
         });
 
         // Initialize app on page load
