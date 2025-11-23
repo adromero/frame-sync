@@ -2,12 +2,14 @@
 uploads/*
 !uploads/.gitkeep
 
-# State files
+# State files and database
 state.json
 current_image.json
 metadata.json
 devices.json
 epaper_device_id.txt
+framesync.db
+backups/
 
 # Python
 __pycache__/

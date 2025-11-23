@@ -1,0 +1,19 @@
+[Unit]
+Description=FrameSync Web Server
+After=network.target
+
+[Service]
+Type=simple
+User=alfon
+WorkingDirectory=/home/alfon/Projects/frame-sync
+ExecStart=/home/alfon/Projects/frame-sync/venv/bin/python /home/alfon/Projects/frame-sync/server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

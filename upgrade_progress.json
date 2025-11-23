@@ -2,8 +2,8 @@
   "version": "1.0",
   "project": "FrameSync Comprehensive Upgrade",
   "started": "2025-11-22",
-  "last_updated": "2025-11-22",
-  "current_checkpoint": "CP1",
+  "last_updated": "2025-11-22T21:05:00",
+  "current_checkpoint": "CP2",
   "current_task": "CP2-T5",
   "overall_status": "in_progress",
   "valid_status_values": ["not_started", "in_progress", "completed", "awaiting_testing", "skipped"],
@@ -495,7 +495,7 @@
           "name": "Migrate to SQLite Database",
           "priority": "high",
           "phase": "phase_1",
-          "status": "not_started",
+          "status": "awaiting_testing",
           "requires_testing": true,
           "estimated_context_usage": "35%",
           "enables": ["CP3-T6"],
@@ -506,61 +506,61 @@
             {
               "id": "CP2-T5-S0",
               "description": "⚠️ BACKUP: Create complete backup of all JSON files (metadata.json, devices.json, state.json) before SQLite migration",
-              "status": "not_started",
+              "status": "completed",
               "critical_safety_step": true
             },
             {
               "id": "CP2-T5-S1",
               "description": "Design SQLite schema (users, images, devices, permissions)",
-              "status": "not_started",
+              "status": "completed",
               "requires_user_input": true,
               "default_choice": "normalized schema with separate tables for users, images, devices, and a junction table for image-device assignments"
             },
             {
               "id": "CP2-T5-S2",
               "description": "Create database initialization script",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S3",
               "description": "Create migration script to convert JSON to SQLite",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S4",
               "description": "Add SQLite helper functions (CRUD operations)",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S5",
               "description": "Replace metadata.json operations with SQLite queries",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S6",
               "description": "Replace devices.json operations with SQLite queries",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S7",
               "description": "Replace state.json operations with SQLite queries",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S8",
               "description": "Add database connection pooling",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP2-T5-S9",
               "description": "Test all operations with SQLite backend",
-              "status": "not_started",
+              "status": "awaiting_testing",
               "testing_breakpoint": true
             },
             {
               "id": "CP2-T5-S10",
               "description": "Verify backup integrity and switch to SQLite in production",
-              "status": "not_started",
+              "status": "awaiting_testing",
               "testing_breakpoint": true
             }
           ]

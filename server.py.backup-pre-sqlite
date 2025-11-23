@@ -9,12 +9,14 @@ from datetime import datetime
 import json
 import random
 from PIL import Image
-import database as db
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'state.json')
+METADATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metadata.json')
+DEVICES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'devices.json')
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -22,9 +24,6 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Enable CORS for all routes
 CORS(app)
-
-# Global variable to track current image (temporary state, not persisted)
-current_image_state = None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -51,55 +50,71 @@ def validate_image_file(filepath):
         error_msg = f"Invalid image file: {str(e)}"
         return False, error_msg
 
+def load_metadata():
+    """Load image metadata from file"""
+    if os.path.exists(METADATA_FILE):
+        try:
+            with open(METADATA_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {'images': {}, 'users': {}}
+
+def save_metadata(metadata):
+    """Save image metadata to file"""
+    with open(METADATA_FILE, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
 def add_image_metadata(filename, uploader_ip, allowed_devices=None):
     """Add metadata for a newly uploaded image"""
-    allowed_devices = allowed_devices if allowed_devices is not None else []
-
-    # Get file info
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file_size = os.path.getsize(filepath) if os.path.exists(filepath) else None
-
-    # Try to get image dimensions
-    width, height = None, None
-    try:
-        with Image.open(filepath) as img:
-            width, height = img.size
-    except:
-        pass
-
-    # Detect MIME type
-    mime_type = None
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    mime_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
-                'gif': 'image/gif', 'bmp': 'image/bmp'}
-    mime_type = mime_map.get(ext)
-
-    # Create image record
-    image = db.create_image(filename, uploader_ip, file_size, mime_type, width, height)
-
-    # Set device assignments
-    if allowed_devices:
-        db.set_image_devices(filename, allowed_devices)
-
-    return image
+    metadata = load_metadata()
+    metadata['images'][filename] = {
+        'uploader_ip': uploader_ip,
+        'upload_time': datetime.now().isoformat(),
+        'allowed_devices': allowed_devices if allowed_devices is not None else []
+    }
+    save_metadata(metadata)
 
 def remove_image_metadata(filename):
     """Remove metadata for a deleted image"""
-    db.delete_image(filename)
+    metadata = load_metadata()
+    if filename in metadata['images']:
+        del metadata['images'][filename]
+        save_metadata(metadata)
 
 def set_user_name(ip, name):
     """Set a display name for a user IP"""
-    db.create_or_update_user(ip, name)
+    metadata = load_metadata()
+    if 'users' not in metadata:
+        metadata['users'] = {}
+    metadata['users'][ip] = {
+        'name': name,
+        'updated': datetime.now().isoformat()
+    }
+    save_metadata(metadata)
 
 def get_user_name(ip):
     """Get the display name for a user IP, or return the IP if no name set"""
-    user = db.get_user_by_ip(ip)
-    return user['name'] if user else ip
+    metadata = load_metadata()
+    if 'users' in metadata and ip in metadata['users']:
+        return metadata['users'][ip].get('name', ip)
+    return ip
 
 def get_all_users():
     """Get list of all unique uploader IPs with their names"""
-    users = db.get_all_users()
-    return [{'ip': user['ip_address'], 'name': user['name']} for user in users]
+    metadata = load_metadata()
+    users = set()
+    for img_data in metadata['images'].values():
+        users.add(img_data['uploader_ip'])
+
+    # Build user list with names
+    user_list = []
+    for ip in sorted(list(users)):
+        user_list.append({
+            'ip': ip,
+            'name': get_user_name(ip)
+        })
+    return user_list
 
 def get_image_list(filter_user=None):
     """Get list of uploaded images with metadata
@@ -107,114 +122,156 @@ def get_image_list(filter_user=None):
     Args:
         filter_user: Optional IP address to filter images by uploader
     """
-    # Get all images from database
-    all_images = db.get_all_images()
-
-    # Build response with device assignments
+    metadata = load_metadata()
     images = []
-    for img in all_images:
-        # Apply user filter if specified
-        if filter_user and img['uploader_ip'] != filter_user:
-            continue
 
-        # Get device assignments
-        allowed_devices = db.get_image_devices(img['filename'])
+    if os.path.exists(UPLOAD_FOLDER):
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if allowed_file(filename):
+                filepath = os.path.join(UPLOAD_FOLDER, filename)
+                stat = os.stat(filepath)
 
-        images.append({
-            'filename': img['filename'],
-            'size': img['file_size'] or 0,
-            'uploaded': img['upload_time'],
-            'uploader_ip': img['uploader_ip'],
-            'uploader_name': get_user_name(img['uploader_ip']),
-            'allowed_devices': allowed_devices
-        })
+                # Get uploader info from metadata
+                img_metadata = metadata['images'].get(filename, {})
+                uploader_ip = img_metadata.get('uploader_ip', 'unknown')
 
+                # Apply user filter if specified
+                if filter_user and uploader_ip != filter_user:
+                    continue
+
+                images.append({
+                    'filename': filename,
+                    'size': stat.st_size,
+                    'uploaded': img_metadata.get('upload_time', datetime.fromtimestamp(stat.st_mtime).isoformat()),
+                    'uploader_ip': uploader_ip,
+                    'uploader_name': get_user_name(uploader_ip),
+                    'allowed_devices': img_metadata.get('allowed_devices', [])
+                })
+
+    images.sort(key=lambda x: x['uploaded'], reverse=True)
     return images
 
 def get_current_image():
     """Get the currently displayed image"""
-    global current_image_state
-    return current_image_state
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, 'r') as f:
+                state = json.load(f)
+                return state.get('current_image')
+        except:
+            pass
+    return None
 
 def set_current_image(filename):
     """Set the currently displayed image"""
-    global current_image_state
-    current_image_state = filename
+    state = {'current_image': filename, 'updated': datetime.now().isoformat()}
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
 
 # Device Management Functions
 
+def load_devices():
+    """Load device registry from file"""
+    if os.path.exists(DEVICES_FILE):
+        try:
+            with open(DEVICES_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {'devices': {}}
+
+def save_devices(devices_data):
+    """Save device registry to file"""
+    with open(DEVICES_FILE, 'w') as f:
+        json.dump(devices_data, f, indent=2)
+
 def register_device(device_id, name, device_type='display', metadata=None):
     """Register or update a device"""
-    existing = db.get_device_by_id(device_id)
-    is_new = existing is None
+    devices_data = load_devices()
 
-    db.create_or_update_device(device_id, name, device_type, metadata or {})
+    is_new = device_id not in devices_data['devices']
+
+    if is_new:
+        devices_data['devices'][device_id] = {
+            'name': name,
+            'device_type': device_type,
+            'registered': datetime.now().isoformat(),
+            'last_seen': datetime.now().isoformat(),
+            'metadata': metadata or {}
+        }
+    else:
+        # Update existing device
+        devices_data['devices'][device_id]['name'] = name
+        devices_data['devices'][device_id]['device_type'] = device_type
+        devices_data['devices'][device_id]['last_seen'] = datetime.now().isoformat()
+        if metadata:
+            devices_data['devices'][device_id]['metadata'] = metadata
+
+    save_devices(devices_data)
     return is_new
 
 def update_device_last_seen(device_id):
     """Update the last seen timestamp for a device"""
-    db.update_device_last_seen(device_id)
+    devices_data = load_devices()
+    if device_id in devices_data['devices']:
+        devices_data['devices'][device_id]['last_seen'] = datetime.now().isoformat()
+        save_devices(devices_data)
 
 def get_device(device_id):
     """Get a specific device by ID"""
-    device = db.get_device_by_id(device_id)
-    if not device:
-        return None
-
-    # Convert database format to API format
-    return {
-        'name': device['name'],
-        'device_type': device['device_type'],
-        'registered': device['registered_at'],
-        'last_seen': device['last_seen_at'],
-        'metadata': device['metadata']
-    }
+    devices_data = load_devices()
+    return devices_data['devices'].get(device_id)
 
 def get_all_devices():
     """Get all registered devices"""
-    devices = db.get_all_devices()
-
-    # Convert to dict format expected by API (device_id as key)
-    devices_dict = {}
-    for device in devices:
-        device_id = device['device_id']
-        devices_dict[device_id] = {
-            'name': device['name'],
-            'device_type': device['device_type'],
-            'registered': device['registered_at'],
-            'last_seen': device['last_seen_at'],
-            'metadata': device['metadata']
-        }
-    return devices_dict
+    devices_data = load_devices()
+    return devices_data['devices']
 
 def delete_device(device_id):
     """Remove a device from the registry"""
-    return db.delete_device(device_id)
+    devices_data = load_devices()
+    if device_id in devices_data['devices']:
+        del devices_data['devices'][device_id]
+        save_devices(devices_data)
+        return True
+    return False
 
 def update_image_devices(filename, allowed_devices):
     """Update the list of devices allowed to view an image"""
-    try:
-        db.set_image_devices(filename, allowed_devices)
+    metadata = load_metadata()
+    if filename in metadata['images']:
+        metadata['images'][filename]['allowed_devices'] = allowed_devices
+        save_metadata(metadata)
         return True
-    except ValueError:
-        return False
+    return False
 
 def get_images_for_device(device_id):
     """Get all images that a specific device is allowed to view"""
-    images = db.get_device_images(device_id)
+    metadata = load_metadata()
+    images = []
 
-    # Convert to expected format
-    result = []
-    for img in images:
-        result.append({
-            'filename': img['filename'],
-            'size': img['file_size'] or 0,
-            'uploaded': img['upload_time'],
-            'uploader_ip': img['uploader_ip'],
-            'uploader_name': get_user_name(img['uploader_ip'])
-        })
+    if os.path.exists(UPLOAD_FOLDER):
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if allowed_file(filename):
+                img_metadata = metadata['images'].get(filename, {})
+                allowed_devices = img_metadata.get('allowed_devices', [])
 
-    return result
+                # Check if this device is allowed to view this image
+                if device_id in allowed_devices:
+                    filepath = os.path.join(UPLOAD_FOLDER, filename)
+                    stat = os.stat(filepath)
+                    uploader_ip = img_metadata.get('uploader_ip', 'unknown')
+
+                    images.append({
+                        'filename': filename,
+                        'size': stat.st_size,
+                        'uploaded': img_metadata.get('upload_time', datetime.fromtimestamp(stat.st_mtime).isoformat()),
+                        'uploader_ip': uploader_ip,
+                        'uploader_name': get_user_name(uploader_ip)
+                    })
+
+    images.sort(key=lambda x: x['uploaded'], reverse=True)
+    return images
 
 @app.route('/')
 def index():
@@ -242,12 +299,11 @@ def list_images():
 def list_users():
     """API endpoint to list all unique uploaders"""
     users = get_all_users()
-
-    # Count images per user from database
-    all_images = db.get_all_images()
+    # Count images per user
+    metadata = load_metadata()
     user_counts = {}
-    for img in all_images:
-        ip = img['uploader_ip']
+    for img_data in metadata['images'].values():
+        ip = img_data['uploader_ip']
         user_counts[ip] = user_counts.get(ip, 0) + 1
 
     users_with_counts = [{'ip': user['ip'], 'name': user['name'], 'image_count': user_counts.get(user['ip'], 0)} for user in users]
@@ -546,14 +602,6 @@ def uploaded_file(filename):
 if __name__ == '__main__':
     # Create upload directory if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-    # Initialize database if it doesn't exist
-    if not os.path.exists(db.DB_FILE):
-        print("Initializing database...")
-        db.init_database()
-        print(f"Database created: {db.DB_FILE}")
-    else:
-        print(f"Using existing database: {db.DB_FILE}")
 
     # SSL certificate paths
     cert_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cert.pem')
