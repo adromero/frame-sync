@@ -6,7 +6,12 @@ A web-based photo frame server that can serve images to multiple displays on you
 
 - 📱 Mobile-friendly web interface for uploading photos
 - 👥 Multi-user support with IP-based user tracking and custom display names
-- 🔍 Filter images by user (all photos, my photos, or specific users)
+- 🔍 Advanced search and filtering:
+  - Search images by filename
+  - Filter by upload date range
+  - Filter by user (all photos, my photos, or specific users)
+  - Filter by device (show only images assigned to specific displays)
+  - Combine multiple filters together
 - 📺 Multi-device support - serve images to any display via HTTP API
 - 🔐 Per-image device permissions - control which displays can see each image
 - ✅ Device selection on upload - assign images to displays immediately when uploading
@@ -125,6 +130,18 @@ The server runs on port 5000:
    - **↻ 90°** - Rotate clockwise (right)
 3. The image and thumbnail will update immediately
 4. Original image file is permanently rotated
+
+#### Searching and Filtering
+
+Easily find images using the powerful search and filter tools:
+
+1. **Search by filename**: Type in the search box to find images by name (auto-searches as you type)
+2. **Filter by date range**: Select start and/or end dates to view images from specific time periods
+3. **Filter by device**: Choose a device from the dropdown to see only images assigned to that display
+4. **Filter by user**: Use the "Owner" dropdown to filter by uploader (all, my photos, or specific users)
+5. **Combine filters**: All filters work together - search for a filename on a specific device within a date range
+6. **Clear filters**: Click "Clear Filters" to reset all search and filter options at once
+7. All filtering respects pagination and updates the image count automatically
 
 #### Bulk Operations
 

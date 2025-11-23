@@ -924,11 +924,33 @@
         <div class="card">
             <h2 style="margin-bottom: 15px;">Photo Gallery</h2>
             <div class="filter-section">
-                <label for="userFilter">Filter by:</label>
-                <select id="userFilter" class="filter-select">
-                    <option value="all">All Photos</option>
-                    <option value="me">My Photos</option>
-                </select>
+                <div style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <input type="text" id="searchInput" class="name-input" placeholder="🔍 Search by filename..." style="width: 100%; padding: 10px; margin: 0;">
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <label for="userFilter" style="margin: 0;">Owner:</label>
+                        <select id="userFilter" class="filter-select">
+                            <option value="all">All Photos</option>
+                            <option value="me">My Photos</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <label for="deviceFilter" style="margin: 0;">Device:</label>
+                        <select id="deviceFilter" class="filter-select">
+                            <option value="all">All Devices</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-small" id="clearFiltersBtn" style="background: linear-gradient(135deg, #999 0%, #777 100%); white-space: nowrap;">Clear Filters</button>
+                </div>
+            </div>
+            <div class="filter-section" style="margin-top: 10px;">
+                <div style="flex: 1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <label for="dateFromInput" style="margin: 0;">Date Range:</label>
+                    <input type="date" id="dateFromInput" class="name-input" style="width: auto; padding: 8px; margin: 0;">
+                    <span>to</span>
+                    <input type="date" id="dateToInput" class="name-input" style="width: auto; padding: 8px; margin: 0;">
+                </div>
             </div>
             <div id="bulkToolbar" class="bulk-toolbar">
                 <span class="bulk-toolbar-label" id="bulkToolbarLabel">0 images selected</span>
@@ -1013,6 +1035,11 @@
         const gallery = document.getElementById('gallery');
         const loading = document.getElementById('loading');
         const userFilter = document.getElementById('userFilter');
+        const searchInput = document.getElementById('searchInput');
+        const deviceFilter = document.getElementById('deviceFilter');
+        const dateFromInput = document.getElementById('dateFromInput');
+        const dateToInput = document.getElementById('dateToInput');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
         const currentUserIpEl = document.getElementById('currentUserIp');
         const nameInput = document.getElementById('nameInput');
         const saveNameBtn = document.getElementById('saveNameBtn');
@@ -1409,6 +1436,11 @@
             try {
                 // Build URL with filter and pagination parameters
                 const filterValue = userFilter.value;
+                const searchValue = searchInput.value.trim();
+                const deviceFilterValue = deviceFilter.value;
+                const dateFromValue = dateFromInput.value;
+                const dateToValue = dateToInput.value;
+
                 let url = `/api/images?page=${currentPage}&limit=${itemsPerPage}`;
 
                 if (filterValue === 'me' && currentUserIp) {
@@ -1416,6 +1448,24 @@
                 } else if (filterValue !== 'all' && filterValue !== 'me') {
                     // Filtering by specific user IP
                     url += `&user=${encodeURIComponent(filterValue)}`;
+                }
+
+                // Add search query if specified
+                if (searchValue) {
+                    url += `&search=${encodeURIComponent(searchValue)}`;
+                }
+
+                // Add device filter if specified
+                if (deviceFilterValue && deviceFilterValue !== 'all') {
+                    url += `&device=${encodeURIComponent(deviceFilterValue)}`;
+                }
+
+                // Add date range filters if specified
+                if (dateFromValue) {
+                    url += `&date_from=${encodeURIComponent(dateFromValue)}`;
+                }
+                if (dateToValue) {
+                    url += `&date_to=${encodeURIComponent(dateToValue)}`;
                 }
 
                 const response = await fetch(url);
@@ -1787,6 +1837,23 @@
                         const deviceItem = createDeviceItem(device);
                         devicesList.appendChild(deviceItem);
                     });
+                }
+
+                // Populate device filter dropdown
+                const currentDeviceFilter = deviceFilter.value;  // Remember current selection
+                deviceFilter.innerHTML = '<option value="all">All Devices</option>';
+                allDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.device_id;
+                    option.textContent = device.name;
+                    deviceFilter.appendChild(option);
+                });
+                // Restore previous selection if it still exists
+                if (currentDeviceFilter && currentDeviceFilter !== 'all') {
+                    const optionExists = Array.from(deviceFilter.options).some(opt => opt.value === currentDeviceFilter);
+                    if (optionExists) {
+                        deviceFilter.value = currentDeviceFilter;
+                    }
                 }
 
                 // Update upload device selection list if it's visible
@@ -2377,6 +2444,43 @@
         // Add filter change listener
         userFilter.addEventListener('change', () => {
             currentPage = 1;  // Reset to first page when filter changes
+            loadImages();
+        });
+
+        // Add search and filter event listeners
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            // Debounce search to avoid excessive requests
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPage = 1;  // Reset to first page when search changes
+                loadImages();
+            }, 300);  // Wait 300ms after user stops typing
+        });
+
+        deviceFilter.addEventListener('change', () => {
+            currentPage = 1;  // Reset to first page when filter changes
+            loadImages();
+        });
+
+        dateFromInput.addEventListener('change', () => {
+            currentPage = 1;  // Reset to first page when filter changes
+            loadImages();
+        });
+
+        dateToInput.addEventListener('change', () => {
+            currentPage = 1;  // Reset to first page when filter changes
+            loadImages();
+        });
+
+        clearFiltersBtn.addEventListener('click', () => {
+            // Clear all filters
+            searchInput.value = '';
+            deviceFilter.value = 'all';
+            dateFromInput.value = '';
+            dateToInput.value = '';
+            userFilter.value = 'all';
+            currentPage = 1;
             loadImages();
         });
 

@@ -283,20 +283,41 @@ def get_all_users():
     users = db.get_all_users()
     return [{'ip': user['ip_address'], 'name': user['name']} for user in users]
 
-def get_image_list(filter_user=None, page=None, limit=None):
+def get_image_list(filter_user=None, page=None, limit=None, search=None, date_from=None, date_to=None, device_id=None):
     """Get list of uploaded images with metadata
 
     Args:
         filter_user: Optional IP address to filter images by uploader
         page: Optional page number (1-indexed) for pagination
         limit: Optional number of items per page
+        search: Optional search query for filename (case-insensitive)
+        date_from: Optional start date filter (YYYY-MM-DD format)
+        date_to: Optional end date filter (YYYY-MM-DD format)
+        device_id: Optional device ID to filter images assigned to specific device
 
     Returns:
         If pagination params provided: dict with {'images': [...], 'total': N, 'page': N, 'pages': N}
         Otherwise: list of images (for backward compatibility)
     """
+    from datetime import datetime
+
     # Get all images from database
     all_images = db.get_all_images()
+
+    # Parse date filters if provided
+    date_from_dt = None
+    date_to_dt = None
+    if date_from:
+        try:
+            date_from_dt = datetime.strptime(date_from, '%Y-%m-%d')
+        except ValueError:
+            logging.warning(f"Invalid date_from format: {date_from}")
+    if date_to:
+        try:
+            # Set to end of day (23:59:59) to include entire end date
+            date_to_dt = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        except ValueError:
+            logging.warning(f"Invalid date_to format: {date_to}")
 
     # Build response with device assignments
     images = []
@@ -305,8 +326,28 @@ def get_image_list(filter_user=None, page=None, limit=None):
         if filter_user and img['uploader_ip'] != filter_user:
             continue
 
+        # Apply filename search filter if specified
+        if search and search.lower() not in img['filename'].lower():
+            continue
+
+        # Apply date range filter if specified
+        if date_from_dt or date_to_dt:
+            try:
+                img_date = datetime.fromisoformat(img['upload_time'])
+                if date_from_dt and img_date < date_from_dt:
+                    continue
+                if date_to_dt and img_date > date_to_dt:
+                    continue
+            except (ValueError, TypeError):
+                logging.warning(f"Invalid upload_time for image {img['filename']}: {img['upload_time']}")
+                continue
+
         # Get device assignments
         allowed_devices = db.get_image_devices(img['filename'])
+
+        # Apply device filter if specified
+        if device_id and device_id not in allowed_devices:
+            continue
 
         images.append({
             'filename': img['filename'],
@@ -442,13 +483,25 @@ def add_no_cache_headers(response):
 
 @app.route('/api/images')
 def list_images():
-    """API endpoint to list all uploaded images with optional pagination"""
+    """API endpoint to list all uploaded images with optional pagination and filtering"""
     filter_user = request.args.get('user')  # Optional filter by user IP
     page = request.args.get('page', type=int)  # Optional page number (1-indexed)
     limit = request.args.get('limit', type=int)  # Optional items per page
+    search = request.args.get('search')  # Optional search query for filename
+    date_from = request.args.get('date_from')  # Optional start date (YYYY-MM-DD)
+    date_to = request.args.get('date_to')  # Optional end date (YYYY-MM-DD)
+    device_id = request.args.get('device')  # Optional filter by device ID
 
     # Get image list (with or without pagination)
-    result = get_image_list(filter_user=filter_user, page=page, limit=limit)
+    result = get_image_list(
+        filter_user=filter_user,
+        page=page,
+        limit=limit,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        device_id=device_id
+    )
     current = get_current_image()
 
     # Handle both paginated and non-paginated responses
