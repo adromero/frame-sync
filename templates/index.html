@@ -624,6 +624,45 @@
                 max-width: 100%;
             }
         }
+
+        /* Pagination styles */
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 20px;
+        }
+
+        .pagination-btn {
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(20, 184, 166, 0.4);
+        }
+
+        .pagination-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .page-info {
+            color: white;
+            font-size: 1em;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -704,6 +743,11 @@
                 <div>Loading images...</div>
             </div>
             <div id="gallery" class="gallery"></div>
+            <div id="paginationContainer" class="pagination-container" style="display: none;">
+                <button id="prevPageBtn" class="pagination-btn">Previous</button>
+                <div id="pageInfo" class="page-info"></div>
+                <button id="nextPageBtn" class="pagination-btn">Next</button>
+            </div>
         </div>
 
         <div class="footer">
@@ -768,8 +812,15 @@
         const addDeviceBtn = document.getElementById('addDeviceBtn');
         const modalDevicesList = document.getElementById('modalDevicesList');
         const modalSaveDevicesBtn = document.getElementById('modalSaveDevicesBtn');
+        const paginationContainer = document.getElementById('paginationContainer');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const pageInfo = document.getElementById('pageInfo');
 
         let currentImage = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        const itemsPerPage = 12;  // Show 12 images per page
         let currentUserIp = null;
         let currentUserName = null;
         let allDevices = [];
@@ -1016,14 +1067,15 @@
             gallery.innerHTML = '';
 
             try {
-                // Build URL with filter parameter
+                // Build URL with filter and pagination parameters
                 const filterValue = userFilter.value;
-                let url = '/api/images';
+                let url = `/api/images?page=${currentPage}&limit=${itemsPerPage}`;
+
                 if (filterValue === 'me' && currentUserIp) {
-                    url = `/api/images?user=${encodeURIComponent(currentUserIp)}`;
+                    url += `&user=${encodeURIComponent(currentUserIp)}`;
                 } else if (filterValue !== 'all' && filterValue !== 'me') {
                     // Filtering by specific user IP
-                    url = `/api/images?user=${encodeURIComponent(filterValue)}`;
+                    url += `&user=${encodeURIComponent(filterValue)}`;
                 }
 
                 const response = await fetch(url);
@@ -1032,11 +1084,21 @@
 
                 loading.style.display = 'none';
 
+                // Update pagination info if available
+                if (data.total !== undefined) {
+                    totalPages = data.pages || 1;
+                    updatePaginationUI(data.total, data.page, data.pages);
+                } else {
+                    // No pagination data (backward compatibility)
+                    paginationContainer.style.display = 'none';
+                }
+
                 if (data.images.length === 0) {
                     const filterMsg = filterValue === 'all' ? 'No images uploaded yet. Upload your first image above!' :
                                      filterValue === 'me' ? 'You haven\'t uploaded any images yet.' :
                                      'This user has no images.';
                     gallery.innerHTML = `<p style="text-align: center; color: #888;">${filterMsg}</p>`;
+                    paginationContainer.style.display = 'none';
                     return;
                 }
 
@@ -1047,6 +1109,39 @@
             } catch (error) {
                 loading.style.display = 'none';
                 gallery.innerHTML = '<p style="text-align: center; color: #c92a2a;">Failed to load images</p>';
+                paginationContainer.style.display = 'none';
+            }
+        }
+
+        function updatePaginationUI(total, page, pages) {
+            if (pages <= 1) {
+                // Hide pagination if only one page or no images
+                paginationContainer.style.display = 'none';
+                return;
+            }
+
+            paginationContainer.style.display = 'flex';
+            pageInfo.textContent = `Page ${page} of ${pages} (${total} images)`;
+
+            // Disable/enable buttons based on current page
+            prevPageBtn.disabled = (page <= 1);
+            nextPageBtn.disabled = (page >= pages);
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            loadImages();
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) {
+                goToPage(currentPage + 1);
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                goToPage(currentPage - 1);
             }
         }
 
@@ -1062,7 +1157,7 @@
 
             const img = document.createElement('img');
             img.className = 'image-thumbnail';
-            img.src = `/uploads/${image.filename}`;
+            img.src = `/api/thumbnails/${image.filename}`;
             img.alt = image.filename;
 
             const info = document.createElement('div');
@@ -1544,7 +1639,14 @@
         }
 
         // Add filter change listener
-        userFilter.addEventListener('change', loadImages);
+        userFilter.addEventListener('change', () => {
+            currentPage = 1;  // Reset to first page when filter changes
+            loadImages();
+        });
+
+        // Pagination event listeners
+        prevPageBtn.addEventListener('click', prevPage);
+        nextPageBtn.addEventListener('click', nextPage);
 
         // Device management event listeners
         addDeviceBtn.addEventListener('click', addDevice);

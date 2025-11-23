@@ -13,8 +13,10 @@ import database as db
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+THUMBNAILS_FOLDER = os.path.join(UPLOAD_FOLDER, 'thumbnails')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+THUMBNAIL_SIZE = (200, 200)  # Thumbnail dimensions
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -49,6 +51,41 @@ def validate_image_file(filepath):
         return True, None
     except Exception as e:
         error_msg = f"Invalid image file: {str(e)}"
+        return False, error_msg
+
+def generate_thumbnail(filename):
+    """
+    Generate a thumbnail for an uploaded image.
+    Returns (success, error_message)
+    """
+    try:
+        # Ensure thumbnails directory exists
+        os.makedirs(THUMBNAILS_FOLDER, exist_ok=True)
+
+        # Paths
+        source_path = os.path.join(UPLOAD_FOLDER, filename)
+        thumb_path = os.path.join(THUMBNAILS_FOLDER, filename)
+
+        # Open image and create thumbnail
+        with Image.open(source_path) as img:
+            # Convert RGBA to RGB if necessary (for PNG with transparency)
+            if img.mode == 'RGBA':
+                # Create white background
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+                img = background
+            elif img.mode not in ('RGB', 'L'):  # L is grayscale
+                img = img.convert('RGB')
+
+            # Create thumbnail maintaining aspect ratio
+            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+
+            # Save thumbnail with optimization
+            img.save(thumb_path, 'JPEG', quality=85, optimize=True)
+
+        return True, None
+    except Exception as e:
+        error_msg = f"Failed to generate thumbnail: {str(e)}"
         return False, error_msg
 
 def add_image_metadata(filename, uploader_ip, allowed_devices=None):
@@ -101,11 +138,17 @@ def get_all_users():
     users = db.get_all_users()
     return [{'ip': user['ip_address'], 'name': user['name']} for user in users]
 
-def get_image_list(filter_user=None):
+def get_image_list(filter_user=None, page=None, limit=None):
     """Get list of uploaded images with metadata
 
     Args:
         filter_user: Optional IP address to filter images by uploader
+        page: Optional page number (1-indexed) for pagination
+        limit: Optional number of items per page
+
+    Returns:
+        If pagination params provided: dict with {'images': [...], 'total': N, 'page': N, 'pages': N}
+        Otherwise: list of images (for backward compatibility)
     """
     # Get all images from database
     all_images = db.get_all_images()
@@ -129,7 +172,29 @@ def get_image_list(filter_user=None):
             'allowed_devices': allowed_devices
         })
 
-    return images
+    # If pagination params not provided, return simple list (backward compatibility)
+    if page is None or limit is None:
+        return images
+
+    # Apply pagination
+    total_images = len(images)
+    total_pages = (total_images + limit - 1) // limit if limit > 0 else 1  # Ceiling division
+
+    # Ensure page is within valid range
+    page = max(1, min(page, total_pages if total_pages > 0 else 1))
+
+    # Calculate slice indices
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_images = images[start_idx:end_idx]
+
+    return {
+        'images': paginated_images,
+        'total': total_images,
+        'page': page,
+        'pages': total_pages,
+        'limit': limit
+    }
 
 def get_current_image():
     """Get the currently displayed image"""
@@ -232,11 +297,29 @@ def add_no_cache_headers(response):
 
 @app.route('/api/images')
 def list_images():
-    """API endpoint to list all uploaded images"""
+    """API endpoint to list all uploaded images with optional pagination"""
     filter_user = request.args.get('user')  # Optional filter by user IP
-    images = get_image_list(filter_user=filter_user)
+    page = request.args.get('page', type=int)  # Optional page number (1-indexed)
+    limit = request.args.get('limit', type=int)  # Optional items per page
+
+    # Get image list (with or without pagination)
+    result = get_image_list(filter_user=filter_user, page=page, limit=limit)
     current = get_current_image()
-    return jsonify({'images': images, 'current_image': current})
+
+    # Handle both paginated and non-paginated responses
+    if isinstance(result, dict):
+        # Paginated response
+        return jsonify({
+            'images': result['images'],
+            'total': result['total'],
+            'page': result['page'],
+            'pages': result['pages'],
+            'limit': result['limit'],
+            'current_image': current
+        })
+    else:
+        # Non-paginated response (backward compatibility)
+        return jsonify({'images': result, 'current_image': current})
 
 @app.route('/api/users')
 def list_users():
@@ -332,6 +415,12 @@ def upload_file():
         os.remove(filepath)
         return jsonify({'error': error_msg}), 400
 
+    # Generate thumbnail
+    thumb_success, thumb_error = generate_thumbnail(filename)
+    if not thumb_success:
+        # Log the error but don't fail the upload
+        print(f"Warning: Failed to generate thumbnail for {filename}: {thumb_error}")
+
     # Get uploader's IP address
     uploader_ip = request.remote_addr
     if request.headers.get('X-Forwarded-For'):
@@ -366,7 +455,14 @@ def delete_image(filename):
         return jsonify({'error': 'File not found'}), 404
 
     try:
+        # Remove the image file
         os.remove(filepath)
+
+        # Remove thumbnail if it exists
+        thumb_path = os.path.join(THUMBNAILS_FOLDER, filename)
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
+
         # Remove metadata
         remove_image_metadata(filename)
         # If this was the current image, clear it
@@ -543,9 +639,31 @@ def uploaded_file(filename):
     """Serve uploaded images"""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/api/thumbnails/<filename>')
+def thumbnail_file(filename):
+    """Serve thumbnail images"""
+    filename = secure_filename(filename)
+    thumb_path = os.path.join(THUMBNAILS_FOLDER, filename)
+
+    # If thumbnail doesn't exist, try to generate it
+    if not os.path.exists(thumb_path):
+        source_path = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.exists(source_path):
+            success, error = generate_thumbnail(filename)
+            if not success:
+                # If thumbnail generation fails, serve the original image
+                return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+    # Serve thumbnail if it exists, otherwise serve original
+    if os.path.exists(thumb_path):
+        return send_from_directory(THUMBNAILS_FOLDER, filename)
+    else:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 if __name__ == '__main__':
     # Create upload directory if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(THUMBNAILS_FOLDER, exist_ok=True)
 
     # Initialize database if it doesn't exist
     if not os.path.exists(db.DB_FILE):
