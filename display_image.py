@@ -3,7 +3,13 @@ import sys
 import os
 
 # Add the e-paper library to the path
-epaper_lib = '/home/r2/e-Paper/RaspberryPi_JetsonNano/python/lib'
+# Check environment variable first, then fall back to current user, then default
+epaper_lib = os.environ.get('EPAPER_LIB_PATH')
+if not epaper_lib:
+    # Use current user's home directory
+    current_user = os.environ.get('USER', 'alfon')
+    epaper_lib = f'/home/{current_user}/e-Paper/RaspberryPi_JetsonNano/python/lib'
+
 if os.path.exists(epaper_lib):
     sys.path.append(epaper_lib)
 

@@ -1,0 +1,1842 @@
+{
+  "version": "1.0",
+  "project": "FrameSync Comprehensive Upgrade",
+  "started": "2025-11-22",
+  "last_updated": "2025-11-22",
+  "current_checkpoint": "CP1",
+  "current_task": "CP2-T5",
+  "overall_status": "in_progress",
+  "valid_status_values": ["not_started", "in_progress", "completed", "awaiting_testing", "skipped"],
+  "valid_priority_values": ["critical", "high", "medium", "low"],
+  "implementation_phases": {
+    "phase_1": {
+      "name": "Critical Security & Foundation",
+      "priority": "REQUIRED",
+      "description": "Critical security fixes and foundational architectural changes",
+      "tasks": ["CP1-T1", "CP1-T3", "CP2-T5", "CP1-T2"]
+    },
+    "phase_2": {
+      "name": "Performance & Usability",
+      "priority": "RECOMMENDED",
+      "description": "Performance improvements and basic UX enhancements",
+      "tasks": ["CP2-T1", "CP2-T2", "CP3-T1", "CP3-T3", "CP4-T2", "CP4-T3"]
+    },
+    "phase_3": {
+      "name": "Nice-to-Haves",
+      "priority": "OPTIONAL",
+      "description": "Additional features that improve experience but are not critical",
+      "tasks": ["CP3-T2", "CP3-T4", "CP5-T2", "CP4-T4", "CP1-T4"]
+    },
+    "phase_4": {
+      "name": "Complex & Entirely Optional",
+      "priority": "SKIP_FOR_FAMILY_USE",
+      "description": "Enterprise features that add significant complexity - designed for multi-tenant/public use cases, not family photo frames",
+      "warning": "These features are overkill for family/Tailscale-only use and should be skipped unless you have specific enterprise requirements",
+      "tasks": ["CP1-T5", "CP1-T6", "CP1-T7", "CP5-T1", "CP5-T3", "CP5-T4", "CP5-T5", "CP5-T6", "CP5-T7", "CP3-T6", "CP6-T1", "CP6-T2", "CP6-T3"]
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Security Improvements (Critical)",
+      "status": "in_progress",
+      "started": "2025-11-22",
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP1-T1",
+          "name": "Fix Command Injection Vulnerability",
+          "priority": "critical",
+          "phase": "phase_1",
+          "status": "completed",
+          "requires_testing": true,
+          "estimated_context_usage": "15%",
+          "subtasks": [
+            {
+              "id": "CP1-T1-S1",
+              "description": "Replace os.system() with subprocess.run() in server.py:416",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T1-S2",
+              "description": "Replace os.system() with subprocess.run() in rotate_image.py:209",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T1-S3",
+              "description": "Add proper error handling for subprocess calls",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T1-S4",
+              "description": "Test e-paper display functionality with new implementation",
+              "status": "completed",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T2",
+          "name": "Fix Hardcoded Path in display_image.py",
+          "priority": "high",
+          "phase": "phase_1",
+          "status": "completed",
+          "requires_testing": true,
+          "estimated_context_usage": "10%",
+          "subtasks": [
+            {
+              "id": "CP1-T2-S1",
+              "description": "Update /home/r2/e-Paper/ path to use current user or config",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T2-S2",
+              "description": "Make e-Paper library path configurable via environment variable",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T2-S3",
+              "description": "Test display_image.py with corrected paths",
+              "status": "completed",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T3",
+          "name": "Implement File Content Validation",
+          "priority": "high",
+          "phase": "phase_1",
+          "status": "completed",
+          "requires_testing": true,
+          "estimated_context_usage": "15%",
+          "subtasks": [
+            {
+              "id": "CP1-T3-S1",
+              "description": "Use Pillow's Image.verify() for file validation (no new dependency needed)",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T3-S2",
+              "description": "Validate file headers/magic bytes in upload endpoint",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T3-S3",
+              "description": "Add proper error messages for invalid file types",
+              "status": "completed"
+            },
+            {
+              "id": "CP1-T3-S4",
+              "description": "Test uploading various file types (valid and invalid)",
+              "status": "completed",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T4",
+          "name": "Add Rate Limiting",
+          "priority": "high",
+          "phase": "phase_3",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP1-T4-S1",
+              "description": "Add Flask-Limiter to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T4-S2",
+              "description": "Configure rate limits for upload endpoint (10/minute per IP)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T4-S3",
+              "description": "Configure rate limits for API endpoints (60/minute per IP)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T4-S4",
+              "description": "Add rate limit headers to responses",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T4-S5",
+              "description": "Test rate limiting with rapid requests",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T5",
+          "name": "Add Authentication System (Basic)",
+          "priority": "high",
+          "phase": "phase_4",
+          "phase_4_warning": "Complex enterprise feature - skip for family use with Tailscale",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "subtasks": [
+            {
+              "id": "CP1-T5-S0",
+              "description": "⚠️ PLAN USER MIGRATION: Document current open-access setup and plan migration strategy for existing users/devices",
+              "status": "not_started",
+              "critical_safety_step": true,
+              "requires_user_input": true
+            },
+            {
+              "id": "CP1-T5-S1",
+              "description": "Design authentication schema (session-based vs token-based)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "session-based (Flask-Login with server-side sessions)"
+            },
+            {
+              "id": "CP1-T5-S2",
+              "description": "Add Flask-Login to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S3",
+              "description": "Create users table/file for storing credentials",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S4",
+              "description": "Add login/logout endpoints",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S5",
+              "description": "Create login UI page",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S6",
+              "description": "Protect upload and delete endpoints with @login_required",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S7",
+              "description": "Add user registration functionality",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T5-S8",
+              "description": "Test login, logout, and protected endpoints",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T6",
+          "name": "Add API Keys for Device Access",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Only needed with authentication system - skip for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "depends_on": ["CP1-T5"],
+          "depends_on_reason": "API keys require authentication system to be in place",
+          "subtasks": [
+            {
+              "id": "CP1-T6-S1",
+              "description": "Add api_key field to device registration",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T6-S2",
+              "description": "Generate secure random API keys for devices",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T6-S3",
+              "description": "Add API key validation middleware for device endpoints",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T6-S4",
+              "description": "Update multi-device documentation with API key usage",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T6-S5",
+              "description": "Test device registration and image fetching with API keys",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP1-T7",
+          "name": "Add CSRF Protection",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Only needed with authentication system - skip for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "depends_on": ["CP1-T6"],
+          "depends_on_reason": "Device endpoints need to be exempted from CSRF using API keys",
+          "subtasks": [
+            {
+              "id": "CP1-T7-S1",
+              "description": "Add Flask-WTF to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T7-S2",
+              "description": "Configure CSRF protection in Flask app",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T7-S3",
+              "description": "Add CSRF tokens to frontend forms and AJAX requests",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T7-S4",
+              "description": "Exempt device API endpoints from CSRF (use API keys instead)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP1-T7-S5",
+              "description": "Test all POST/DELETE operations with CSRF protection",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP2",
+      "name": "Performance Improvements",
+      "status": "not_started",
+      "started": null,
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP2-T1",
+          "name": "Generate Image Thumbnails",
+          "priority": "high",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "enables": ["CP3-T5"],
+          "enables_reason": "Thumbnails must exist before rotation can update them",
+          "subtasks": [
+            {
+              "id": "CP2-T1-S1",
+              "description": "Create thumbnails directory structure (uploads/thumbnails/)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S2",
+              "description": "Add thumbnail generation function using Pillow (200x200px)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S3",
+              "description": "Generate thumbnails on upload",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S4",
+              "description": "Add /api/thumbnails/<filename> endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S5",
+              "description": "Update frontend to load thumbnails in gallery",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S6",
+              "description": "Generate thumbnails for existing images (migration script)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T1-S7",
+              "description": "Test thumbnail generation and gallery loading performance",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP2-T2",
+          "name": "Add Pagination to Image Gallery",
+          "priority": "high",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP2-T2-S1",
+              "description": "Add pagination parameters to /api/images endpoint (page, limit)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T2-S2",
+              "description": "Implement backend pagination logic",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T2-S3",
+              "description": "Return pagination metadata (total, pages, current_page)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T2-S4",
+              "description": "Add pagination UI controls to frontend",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T2-S5",
+              "description": "Implement page navigation (prev/next, page numbers)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T2-S6",
+              "description": "Test pagination with various image counts",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP2-T3",
+          "name": "Implement Metadata Caching",
+          "priority": "medium",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "skip_if_completed": ["CP2-T5"],
+          "skip_reason": "SQLite has built-in caching mechanisms, making this task obsolete",
+          "recommendation": "Complete CP2-T5 (SQLite migration) first to skip this task entirely and save effort",
+          "subtasks": [
+            {
+              "id": "CP2-T3-S1",
+              "description": "Design caching layer (in-memory with TTL)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "simple in-memory dictionary with timestamp-based TTL"
+            },
+            {
+              "id": "CP2-T3-S2",
+              "description": "Add cache for metadata.json (5-minute TTL)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T3-S3",
+              "description": "Add cache for devices.json (5-minute TTL)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T3-S4",
+              "description": "Implement cache invalidation on writes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T3-S5",
+              "description": "Add cache statistics endpoint for monitoring",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T3-S6",
+              "description": "Test cache hit/miss rates and invalidation",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP2-T4",
+          "name": "Add Lazy Loading to Gallery",
+          "priority": "medium",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP2-T4-S1",
+              "description": "Implement Intersection Observer for lazy loading",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T4-S2",
+              "description": "Add loading='lazy' attribute to img tags",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T4-S3",
+              "description": "Add loading placeholder/skeleton screens",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T4-S4",
+              "description": "Test lazy loading with large image galleries",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP2-T5",
+          "name": "Migrate to SQLite Database",
+          "priority": "high",
+          "phase": "phase_1",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "35%",
+          "enables": ["CP3-T6"],
+          "enables_reason": "Albums are much easier to implement with relational database",
+          "obsoletes": ["CP4-T1", "CP2-T3"],
+          "obsoletes_reason": "SQLite handles locking and caching internally",
+          "subtasks": [
+            {
+              "id": "CP2-T5-S0",
+              "description": "⚠️ BACKUP: Create complete backup of all JSON files (metadata.json, devices.json, state.json) before SQLite migration",
+              "status": "not_started",
+              "critical_safety_step": true
+            },
+            {
+              "id": "CP2-T5-S1",
+              "description": "Design SQLite schema (users, images, devices, permissions)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "normalized schema with separate tables for users, images, devices, and a junction table for image-device assignments"
+            },
+            {
+              "id": "CP2-T5-S2",
+              "description": "Create database initialization script",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S3",
+              "description": "Create migration script to convert JSON to SQLite",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S4",
+              "description": "Add SQLite helper functions (CRUD operations)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S5",
+              "description": "Replace metadata.json operations with SQLite queries",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S6",
+              "description": "Replace devices.json operations with SQLite queries",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S7",
+              "description": "Replace state.json operations with SQLite queries",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S8",
+              "description": "Add database connection pooling",
+              "status": "not_started"
+            },
+            {
+              "id": "CP2-T5-S9",
+              "description": "Test all operations with SQLite backend",
+              "status": "not_started",
+              "testing_breakpoint": true
+            },
+            {
+              "id": "CP2-T5-S10",
+              "description": "Verify backup integrity and switch to SQLite in production",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP3",
+      "name": "User Experience Improvements",
+      "status": "not_started",
+      "started": null,
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP3-T1",
+          "name": "Add Upload Progress Bar",
+          "priority": "high",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP3-T1-S1",
+              "description": "Replace fetch() with XMLHttpRequest in upload function",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T1-S2",
+              "description": "Add progress event listener to track upload percentage",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T1-S3",
+              "description": "Create progress bar UI component",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T1-S4",
+              "description": "Update progress bar during upload",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T1-S5",
+              "description": "Test with various file sizes (small and large)",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T2",
+          "name": "Add Bulk Operations",
+          "priority": "high",
+          "phase": "phase_3",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "subtasks": [
+            {
+              "id": "CP3-T2-S1",
+              "description": "Add checkboxes to image gallery items",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S2",
+              "description": "Add 'Select All' / 'Deselect All' controls",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S3",
+              "description": "Create bulk actions toolbar (delete, change devices)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S4",
+              "description": "Add /api/images/bulk-delete endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S5",
+              "description": "Add /api/images/bulk-update-devices endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S6",
+              "description": "Implement bulk delete functionality",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S7",
+              "description": "Implement bulk device assignment functionality",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T2-S8",
+              "description": "Test bulk operations with multiple selections",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T3",
+          "name": "Remember Device Selection",
+          "priority": "medium",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "15%",
+          "subtasks": [
+            {
+              "id": "CP3-T3-S1",
+              "description": "Save device selection to localStorage on upload",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T3-S2",
+              "description": "Load saved selection on page load",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T3-S3",
+              "description": "Pre-select remembered devices in upload modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T3-S4",
+              "description": "Add option to clear saved preferences",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T3-S5",
+              "description": "Test device selection persistence across sessions",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T4",
+          "name": "Add Search and Filtering",
+          "priority": "medium",
+          "phase": "phase_3",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP3-T4-S1",
+              "description": "Add search input to UI toolbar",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S2",
+              "description": "Implement filename search on backend",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S3",
+              "description": "Add date range filter UI",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S4",
+              "description": "Implement date range filtering on backend",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S5",
+              "description": "Add device filter (show images for specific device)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S6",
+              "description": "Implement real-time search filtering on frontend",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T4-S7",
+              "description": "Test search and filtering combinations",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T5",
+          "name": "Add Image Rotation/Editing",
+          "priority": "medium",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "depends_on": ["CP2-T1"],
+          "depends_on_reason": "Requires thumbnails for updating after rotation",
+          "subtasks": [
+            {
+              "id": "CP3-T5-S1",
+              "description": "Add rotation buttons to image detail modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T5-S2",
+              "description": "Add /api/images/<filename>/rotate endpoint (90, 180, 270)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T5-S3",
+              "description": "Implement server-side image rotation using Pillow",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T5-S4",
+              "description": "Update thumbnail after rotation",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T5-S5",
+              "description": "Add UI feedback during rotation",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T5-S6",
+              "description": "Test rotation with various image formats and sizes",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T6",
+          "name": "Add Album/Collection Support",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Complex feature - can be deferred for simpler use cases",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "depends_on": ["CP2-T5"],
+          "depends_on_reason": "Albums are much easier to implement with relational database",
+          "subtasks": [
+            {
+              "id": "CP3-T6-S1",
+              "description": "Design album data structure (requires CP2-T5 SQLite migration - add albums table with foreign keys to images)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "albums table with id, name, description, created_at; images_albums junction table for many-to-many relationship"
+            },
+            {
+              "id": "CP3-T6-S2",
+              "description": "Add album CRUD endpoints",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T6-S3",
+              "description": "Create album management UI",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T6-S4",
+              "description": "Add album selection to upload modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T6-S5",
+              "description": "Add album filter to gallery view",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T6-S6",
+              "description": "Support moving images between albums",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T6-S7",
+              "description": "Test album creation, assignment, and filtering",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T7",
+          "name": "Show EXIF Metadata",
+          "priority": "low",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP3-T7-S1",
+              "description": "Use Pillow's built-in Image.getexif() method for EXIF extraction (no new dependency needed)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T7-S2",
+              "description": "Store EXIF data (date taken, camera, GPS) in metadata",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T7-S3",
+              "description": "Display EXIF data in image detail modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T7-S4",
+              "description": "Add option to sort by date taken (vs upload date)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T7-S5",
+              "description": "Test EXIF extraction with various image sources",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP3-T8",
+          "name": "Improve Mobile Device Management",
+          "priority": "low",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "15%",
+          "subtasks": [
+            {
+              "id": "CP3-T8-S1",
+              "description": "Shorten UUID display on mobile (show first 8 chars + '...')",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T8-S2",
+              "description": "Add tap-to-reveal for full UUID",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T8-S3",
+              "description": "Improve device list layout for narrow screens",
+              "status": "not_started"
+            },
+            {
+              "id": "CP3-T8-S4",
+              "description": "Test on various mobile screen sizes",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP4",
+      "name": "Reliability & Maintainability",
+      "status": "not_started",
+      "started": null,
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP4-T1",
+          "name": "Implement File Locking for JSON Operations",
+          "priority": "low",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "skip_if_completed": ["CP2-T5"],
+          "skip_reason": "SQLite handles locking internally, making this task obsolete",
+          "subtasks": [
+            {
+              "id": "CP4-T1-S1",
+              "description": "Add fcntl-based file locking for metadata.json reads/writes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T1-S2",
+              "description": "Add fcntl-based file locking for devices.json reads/writes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T1-S3",
+              "description": "Add fcntl-based file locking for state.json reads/writes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T1-S4",
+              "description": "Add timeout and error handling for lock acquisition",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T1-S5",
+              "description": "Test concurrent writes with file locking",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T2",
+          "name": "Improve Error Handling",
+          "priority": "high",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP4-T2-S1",
+              "description": "Replace bare except: with specific exceptions in load_metadata()",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S2",
+              "description": "Replace bare except: with specific exceptions in load_devices()",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S3",
+              "description": "Add proper exception handling to all file operations",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S4",
+              "description": "Add logging for all caught exceptions",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S5",
+              "description": "Create standardized error response format",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S6",
+              "description": "Add frontend error display for API errors",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T2-S7",
+              "description": "Test error handling with various failure scenarios",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T3",
+          "name": "Add Storage Quotas",
+          "priority": "high",
+          "phase": "phase_2",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP4-T3-S1",
+              "description": "Add storage quota configuration (default 5GB)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S2",
+              "description": "Create function to calculate current storage usage",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S3",
+              "description": "Check quota before accepting uploads",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S4",
+              "description": "Add storage usage display to UI",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S5",
+              "description": "Add warning when approaching quota (90%)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S6",
+              "description": "Add /api/storage endpoint for usage statistics",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T3-S7",
+              "description": "Test quota enforcement with large uploads",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T4",
+          "name": "Add Configuration File System",
+          "priority": "medium",
+          "phase": "phase_3",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP4-T4-S1",
+              "description": "Create config.py with default values",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S2",
+              "description": "Add support for .env file (using python-dotenv)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S3",
+              "description": "Move hardcoded values to config (port, max file size, etc.)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S4",
+              "description": "Add environment variable overrides",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S5",
+              "description": "Create config.example.env template",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S6",
+              "description": "Update documentation with configuration options",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T4-S7",
+              "description": "Test with various configuration values",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T5",
+          "name": "Split Frontend into Separate Files",
+          "priority": "medium",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "should_precede": ["major frontend additions"],
+          "should_precede_reason": "Splitting frontend before adding major features avoids merge conflicts",
+          "subtasks": [
+            {
+              "id": "CP4-T5-S1",
+              "description": "Create static/css/style.css and extract CSS",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S2",
+              "description": "Create static/js/api.js for API calls",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S3",
+              "description": "Create static/js/components.js for reusable UI components",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S4",
+              "description": "Create static/js/app.js for main application logic",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S5",
+              "description": "Update index.html to reference external files",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S6",
+              "description": "Add static file serving endpoints if needed",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T5-S7",
+              "description": "Test that UI works identically after split",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T6",
+          "name": "Add Unit Tests",
+          "priority": "medium",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "35%",
+          "subtasks": [
+            {
+              "id": "CP4-T6-S1",
+              "description": "Add pytest and pytest-flask to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S2",
+              "description": "Create tests/ directory structure",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S3",
+              "description": "Write tests for metadata operations",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S4",
+              "description": "Write tests for device registration and management",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S5",
+              "description": "Write tests for upload endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S6",
+              "description": "Write tests for image filtering logic",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S7",
+              "description": "Write tests for authentication (if implemented)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S8",
+              "description": "Add test coverage reporting",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T6-S9",
+              "description": "Run full test suite and achieve >80% coverage",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP4-T7",
+          "name": "Add Health Check Endpoint",
+          "priority": "low",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "15%",
+          "subtasks": [
+            {
+              "id": "CP4-T7-S1",
+              "description": "Create /health endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T7-S2",
+              "description": "Add system checks (disk space, DB connection, etc.)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T7-S3",
+              "description": "Return JSON with status and component health",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T7-S4",
+              "description": "Add uptime and version information",
+              "status": "not_started"
+            },
+            {
+              "id": "CP4-T7-S5",
+              "description": "Test health endpoint in various states",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP5",
+      "name": "New Features",
+      "status": "not_started",
+      "started": null,
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP5-T1",
+          "name": "Replace Polling with WebSocket Updates",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Complex architectural change - polling is acceptable for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "implement_last": true,
+          "implement_last_reason": "Requires switching from Flask development server to eventlet WSGI server - major architectural change affecting deployment. Should be implemented AFTER all other CP5 tasks and BEFORE starting CP6 tasks.",
+          "subtasks": [
+            {
+              "id": "CP5-T1-S0",
+              "description": "⚠️ BACKUP: Create backup of current server.py and systemd service file before switching to eventlet WSGI server",
+              "status": "not_started",
+              "critical_safety_step": true
+            },
+            {
+              "id": "CP5-T1-S1",
+              "description": "Add Flask-SocketIO, python-socketio, and eventlet to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S2",
+              "description": "Initialize SocketIO in Flask app",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S3",
+              "description": "Update server.py to use eventlet WSGI server instead of Flask's development server",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S4",
+              "description": "Update systemd service file to use eventlet-based server",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S5",
+              "description": "Add WebSocket events (image_uploaded, image_deleted, device_added)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S6",
+              "description": "Emit events from backend on state changes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S7",
+              "description": "Add Socket.IO client library to frontend",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S8",
+              "description": "Replace polling with WebSocket listeners",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S9",
+              "description": "Add connection status indicator",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T1-S10",
+              "description": "Test real-time updates with multiple clients",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ],
+          "architectural_note": "This task requires switching from Flask's development server to eventlet WSGI server. This is a significant architectural change that affects deployment. Recommend implementing this task last after all other features are stable."
+        },
+        {
+          "id": "CP5-T2",
+          "name": "Add Per-Device Slideshow Settings",
+          "priority": "medium",
+          "phase": "phase_3",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP5-T2-S1",
+              "description": "Add rotation_interval field to device schema",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T2-S2",
+              "description": "Add device settings UI (interval, shuffle, etc.)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T2-S3",
+              "description": "Add /api/devices/<id>/settings endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T2-S4",
+              "description": "Update systemd timer to use per-device intervals",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T2-S5",
+              "description": "Add shuffle mode option for random image selection",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T2-S6",
+              "description": "Test various interval and shuffle configurations",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP5-T3",
+          "name": "Add Public Share Links",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise feature - not needed for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP5-T3-S1",
+              "description": "Design share link schema (token, expiration, permissions)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "share_links table with random URL-safe token, expiration timestamp, image_id foreign key, optional password protection"
+            },
+            {
+              "id": "CP5-T3-S2",
+              "description": "Add share link generation endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T3-S3",
+              "description": "Add public share view (no auth required)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T3-S4",
+              "description": "Add share button to image detail modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T3-S5",
+              "description": "Implement link expiration logic",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T3-S6",
+              "description": "Add copy-to-clipboard for share links",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T3-S7",
+              "description": "Test share link creation, access, and expiration",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP5-T4",
+          "name": "Add Activity/Audit Log",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise feature - not needed for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "depends_on": ["CP1-T5"],
+          "depends_on_reason": "Activity log needs user tracking from authentication system",
+          "subtasks": [
+            {
+              "id": "CP5-T4-S1",
+              "description": "Create activity log schema (user, action, timestamp, details)",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "activity_log table with id, user_id FK, action (enum), target_type, target_id, timestamp, details (JSON)"
+            },
+            {
+              "id": "CP5-T4-S2",
+              "description": "Add logging for uploads, deletes, device changes",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T4-S3",
+              "description": "Add /api/activity endpoint with pagination",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T4-S4",
+              "description": "Create activity log UI page",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T4-S5",
+              "description": "Add filtering by user, action type, date range",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T4-S6",
+              "description": "Add log retention policy (e.g., 90 days)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T4-S7",
+              "description": "Test activity logging and viewing",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP5-T5",
+          "name": "Create Progressive Web App (PWA)",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Nice-to-have but adds complexity - not essential for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP5-T5-S1",
+              "description": "Create manifest.json with app metadata",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T5-S2",
+              "description": "Add app icons (various sizes)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T5-S3",
+              "description": "Create service worker for offline support",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T5-S4",
+              "description": "Implement cache-first strategy for images",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T5-S5",
+              "description": "Add install prompt UI",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T5-S6",
+              "description": "Test installation on iOS and Android",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP5-T6",
+          "name": "Add Image Captions",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Nice-to-have feature - can be deferred",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP5-T6-S1",
+              "description": "Add caption field to image metadata schema",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T6-S2",
+              "description": "Add caption input to upload modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T6-S3",
+              "description": "Add caption editing to image detail modal",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T6-S4",
+              "description": "Display captions in gallery view (on hover or always visible)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T6-S5",
+              "description": "Add /api/images/<filename>/caption endpoint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T6-S6",
+              "description": "Test caption creation and editing",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP5-T7",
+          "name": "Create Admin Dashboard",
+          "priority": "low",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise feature - overkill for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "30%",
+          "subtasks": [
+            {
+              "id": "CP5-T7-S1",
+              "description": "Create /api/stats endpoint (total images, devices, storage, users)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S2",
+              "description": "Add upload trends data (images per day/week)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S3",
+              "description": "Add device activity metrics (last seen, total requests)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S4",
+              "description": "Create dashboard UI page with charts",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S5",
+              "description": "Add user management interface (if multi-user)",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S6",
+              "description": "Add system health indicators",
+              "status": "not_started"
+            },
+            {
+              "id": "CP5-T7-S7",
+              "description": "Test dashboard with various data scenarios",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP6",
+      "name": "Documentation & API Improvements",
+      "status": "not_started",
+      "started": null,
+      "completed": null,
+      "tasks": [
+        {
+          "id": "CP6-T1",
+          "name": "Add OpenAPI/Swagger Documentation",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise API documentation - not needed for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP6-T1-S1",
+              "description": "Add flask-swagger-ui to requirements.txt",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T1-S2",
+              "description": "Create openapi.yaml specification file",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T1-S3",
+              "description": "Document all API endpoints with request/response schemas",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T1-S4",
+              "description": "Add authentication documentation",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T1-S5",
+              "description": "Set up Swagger UI at /api/docs",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T1-S6",
+              "description": "Test interactive API documentation",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP6-T2",
+          "name": "Implement API Versioning",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise API feature - not needed for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP6-T2-S1",
+              "description": "Create /api/v1/ blueprint",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S2",
+              "description": "Move all current endpoints to v1",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S3",
+              "description": "Add /api/version endpoint showing current API version",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S4",
+              "description": "Update frontend to use /api/v1/ endpoints",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S5",
+              "description": "Add deprecation notices for old endpoints",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S6",
+              "description": "Update multi-device documentation",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T2-S7",
+              "description": "Test all endpoints under new version path",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP6-T3",
+          "name": "Standardize API Response Format",
+          "priority": "medium",
+          "phase": "phase_4",
+          "phase_4_warning": "Enterprise API feature - not needed for family use",
+          "status": "not_started",
+          "requires_testing": true,
+          "estimated_context_usage": "25%",
+          "subtasks": [
+            {
+              "id": "CP6-T3-S1",
+              "description": "Design standard response envelope {success, data, error}",
+              "status": "not_started",
+              "requires_user_input": true,
+              "default_choice": "JSON envelope with {success: boolean, data: object|null, error: {code: string, message: string}|null}"
+            },
+            {
+              "id": "CP6-T3-S2",
+              "description": "Create response wrapper helper functions",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T3-S3",
+              "description": "Update all endpoints to use standard format",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T3-S4",
+              "description": "Add error code enumeration",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T3-S5",
+              "description": "Update frontend to handle new response format",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T3-S6",
+              "description": "Test all API responses match standard format",
+              "status": "not_started",
+              "testing_breakpoint": true
+            }
+          ]
+        },
+        {
+          "id": "CP6-T4",
+          "name": "Update Documentation",
+          "priority": "low",
+          "status": "not_started",
+          "requires_testing": false,
+          "estimated_context_usage": "20%",
+          "subtasks": [
+            {
+              "id": "CP6-T4-S1",
+              "description": "Update README.md with new features",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T4-S2",
+              "description": "Create CONTRIBUTING.md",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T4-S3",
+              "description": "Create architecture diagram",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T4-S4",
+              "description": "Update multi-device-instructions.md",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T4-S5",
+              "description": "Add CHANGELOG.md tracking all improvements",
+              "status": "not_started"
+            },
+            {
+              "id": "CP6-T4-S6",
+              "description": "Create deployment guide",
+              "status": "not_started"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "⚠️ SINGLE SOURCE OF TRUTH: This JSON file is authoritative for all task statuses. UPGRADE_PLAN.md is read-only reference.",
+    "⚠️ IMPLEMENTATION PHASES: Tasks are organized into 4 phases - Phase 1 (REQUIRED), Phase 2 (RECOMMENDED), Phase 3 (OPTIONAL), Phase 4 (SKIP FOR FAMILY USE)",
+    "⚠️ PHASE 4 WARNING: All Phase 4 tasks are enterprise features designed for multi-tenant/public use cases and add significant complexity - skip for family photo frame use",
+    "Each checkpoint represents a major category of improvements",
+    "Tasks include 'phase' field to indicate which implementation phase they belong to",
+    "Tasks marked with 'phase_4_warning' should be skipped unless you have specific enterprise requirements",
+    "Estimated context usage helps prevent exceeding Claude's limits",
+    "Testing breakpoints ensure user can verify changes before proceeding",
+    "This file should be updated after completing each subtask",
+    "New Claude sessions can resume from last completed task",
+    "Storage quota should be monitored on Raspberry Pi (limited SD card space)",
+    "SQLite migration (CP2-T5) is a major foundational change - backup data first, implement early in Phase 1",
+    "Authentication (CP1-T5) is Phase 4 - overkill for family/Tailscale-only use, skip unless needed",
+    "Some features depend on others (e.g., albums need SQLite, API keys need authentication)",
+    "WebSocket implementation (CP5-T1) is Phase 4 - complex architectural change, polling is acceptable for family use",
+    "Design subtasks with requires_user_input=true have default_choice if user doesn't provide preference",
+    "Tasks with skip_if_completed should be checked before starting - skip if dependency is already done",
+    "Tasks with implement_last=true should only be done after all other features are stable"
+  ],
+  "dependency_optimizations": {
+    "avoided_dependencies": [
+      "python-magic - replaced with Pillow's Image.verify() for file validation",
+      "imghdr - deprecated in Python 3.11+, replaced with Pillow",
+      "piexif - unmaintained, replaced with Pillow's built-in getexif()"
+    ],
+    "built_in_modules_used": [
+      "sqlite3 - Python's built-in SQLite module (no dependency needed)",
+      "subprocess - Python's built-in module (replaces os.system for security)"
+    ],
+    "architectural_notes": [
+      "Flask-SocketIO requires eventlet or gevent WSGI server",
+      "eventlet chosen for simplicity and Raspberry Pi ARM64 compatibility",
+      "WebSocket task should be implemented last due to server architecture change"
+    ]
+  },
+  "recommended_order": [
+    "⚠️ RECOMMENDED APPROACH: Focus on Phase 1 (REQUIRED), then Phase 2 (RECOMMENDED), selectively implement Phase 3 (OPTIONAL), and SKIP Phase 4 (enterprise features)",
+    "Phase 1 - Critical Security & Foundation: CP1-T1 (command injection), CP1-T3 (file validation), CP2-T5 (SQLite migration), CP1-T2 (hardcoded paths)",
+    "Phase 2 - Performance & Usability: CP2-T1 (thumbnails), CP2-T2 (pagination), CP3-T1 (upload progress), CP3-T3 (remember devices), CP4-T2 (error handling), CP4-T3 (storage quotas)",
+    "Phase 3 - Nice-to-Haves (optional): CP3-T2 (bulk ops), CP3-T4 (search), CP5-T2 (slideshow settings), CP4-T4 (config system), CP1-T4 (rate limiting)",
+    "Phase 4 - SKIP FOR FAMILY USE: Authentication, API keys, CSRF, WebSockets, PWA, admin dashboard, albums, API docs/versioning - all add significant complexity for minimal benefit in family/Tailscale use case"
+  ],
+  "implementation_notes": {
+    "status_values_explained": {
+      "not_started": "Task has not been started yet",
+      "in_progress": "Task is currently being worked on",
+      "completed": "Task has been fully completed and verified",
+      "awaiting_testing": "Implementation is complete, waiting for user to test with real hardware/usage",
+      "skipped": "Task was skipped because its prerequisite made it obsolete (e.g., CP2-T5 completed before CP2-T3)"
+    },
+    "critical_safety_step": "Subtasks marked with 'critical_safety_step: true' are backup/safety operations that MUST be completed before proceeding with potentially destructive changes. AI implementers should pause and verify backup completion with user.",
+    "testing_breakpoint": "Subtasks marked with 'testing_breakpoint: true' require the AI to STOP implementation and set status to 'awaiting_testing'. User must verify functionality with real hardware before proceeding.",
+    "dependency_tracking": "All task dependencies (depends_on, enables, obsoletes, skip_if_completed) are stored inline within each task object. There is no separate dependencies section to avoid redundancy and inconsistencies."
+  }
+}

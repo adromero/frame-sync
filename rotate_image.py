@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import subprocess
 import json
 import random
 from datetime import datetime
@@ -205,15 +206,26 @@ def rotate_image():
 
         logger.info(f"Displaying: {next_image}")
 
-        # Call the display script
-        result = os.system(f'python3 "{DISPLAY_SCRIPT}" "{image_path}"')
+        # Call the display script using subprocess for security
+        try:
+            result = subprocess.run(
+                ['python3', DISPLAY_SCRIPT, image_path],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
 
-        if result == 0:
-            set_current_image(next_image)
-            logger.info("Image rotation successful")
-            return 0
-        else:
-            logger.error("Failed to display image")
+            if result.returncode == 0:
+                set_current_image(next_image)
+                logger.info("Image rotation successful")
+                return 0
+            else:
+                error_msg = result.stderr.strip() if result.stderr else 'Unknown error'
+                logger.error(f"Failed to display image: {error_msg}")
+                return 1
+
+        except subprocess.TimeoutExpired:
+            logger.error("Display operation timed out")
             return 1
 
     except Exception as e:

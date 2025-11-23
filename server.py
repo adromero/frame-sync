@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import os
 import sys
+import subprocess
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import random
+from PIL import Image
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -25,6 +27,28 @@ CORS(app)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def validate_image_file(filepath):
+    """
+    Validate that a file is actually a valid image using Pillow.
+    Returns (is_valid, error_message)
+    """
+    try:
+        # Open and verify the image
+        with Image.open(filepath) as img:
+            # verify() checks the file header without loading the entire image
+            img.verify()
+
+        # Re-open to check it can be fully loaded
+        # (verify() consumes the image object)
+        with Image.open(filepath) as img:
+            # Try to load the image data
+            img.load()
+
+        return True, None
+    except Exception as e:
+        error_msg = f"Invalid image file: {str(e)}"
+        return False, error_msg
 
 def load_metadata():
     """Load image metadata from file"""
@@ -357,6 +381,13 @@ def upload_file():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
+    # Validate that the file is actually a valid image
+    is_valid, error_msg = validate_image_file(filepath)
+    if not is_valid:
+        # Remove the invalid file
+        os.remove(filepath)
+        return jsonify({'error': error_msg}), 400
+
     # Get uploader's IP address
     uploader_ip = request.remote_addr
     if request.headers.get('X-Forwarded-For'):
@@ -411,15 +442,23 @@ def display_image(filename):
         return jsonify({'error': 'File not found'}), 404
 
     try:
-        # Call the display script
+        # Call the display script using subprocess for security
         display_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'display_image.py')
-        result = os.system(f'python3 "{display_script}" "{filepath}"')
+        result = subprocess.run(
+            ['python3', display_script, filepath],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
 
-        if result == 0:
+        if result.returncode == 0:
             set_current_image(filename)
             return jsonify({'success': True, 'message': 'Image displayed on e-paper'})
         else:
-            return jsonify({'error': 'Failed to display image'}), 500
+            error_msg = result.stderr.strip() if result.stderr else 'Failed to display image'
+            return jsonify({'error': error_msg}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Display operation timed out'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
