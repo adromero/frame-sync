@@ -918,6 +918,9 @@
                     </div>
                 </div>
                 <div class="modal-actions">
+                    <button class="btn" id="modalRotateLeftBtn" style="background: #06b6d4;" title="Rotate 90° counter-clockwise">↺ 90°</button>
+                    <button class="btn" id="modalRotate180Btn" style="background: #0891b2;" title="Rotate 180°">↻ 180°</button>
+                    <button class="btn" id="modalRotateRightBtn" style="background: #0e7490;" title="Rotate 90° clockwise">↻ 90°</button>
                     <button class="btn" id="modalSaveDevicesBtn" style="background: #28a745;">Save Devices</button>
                     <button class="btn btn-success" id="modalDisplayBtn">Display on Frame</button>
                     <button class="btn btn-danger" id="modalDeleteBtn">Delete</button>
@@ -949,6 +952,9 @@
         const modalImageUploader = document.getElementById('modalImageUploader');
         const modalDisplayBtn = document.getElementById('modalDisplayBtn');
         const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+        const modalRotateLeftBtn = document.getElementById('modalRotateLeftBtn');
+        const modalRotate180Btn = document.getElementById('modalRotate180Btn');
+        const modalRotateRightBtn = document.getElementById('modalRotateRightBtn');
         const ipList = document.getElementById('ipList');
         const devicesList = document.getElementById('devicesList');
         const deviceNameInput = document.getElementById('deviceNameInput');
@@ -969,6 +975,7 @@
         const itemsPerPage = 12;  // Show 12 images per page
         let currentUserIp = null;
         let currentUserName = null;
+        let lastRotationTimestamp = Date.now();  // Track last rotation for cache busting
         let allDevices = [];
         let currentImageFilename = null;
         let currentModalImage = null;
@@ -1261,6 +1268,27 @@
             closeModal();
         });
 
+        modalRotateLeftBtn.addEventListener('click', async () => {
+            if (!currentModalImage) return;
+            setButtonLoading(modalRotateLeftBtn, true);
+            await rotateImage(currentModalImage.filename, 270);
+            setButtonLoading(modalRotateLeftBtn, false);
+        });
+
+        modalRotate180Btn.addEventListener('click', async () => {
+            if (!currentModalImage) return;
+            setButtonLoading(modalRotate180Btn, true);
+            await rotateImage(currentModalImage.filename, 180);
+            setButtonLoading(modalRotate180Btn, false);
+        });
+
+        modalRotateRightBtn.addEventListener('click', async () => {
+            if (!currentModalImage) return;
+            setButtonLoading(modalRotateRightBtn, true);
+            await rotateImage(currentModalImage.filename, 90);
+            setButtonLoading(modalRotateRightBtn, false);
+        });
+
         function showMessage(text, type) {
             message.textContent = text;
             message.className = `message ${type}`;
@@ -1382,7 +1410,7 @@
 
             const img = document.createElement('img');
             img.className = 'image-thumbnail lazy-loading';
-            img.dataset.src = `/api/thumbnails/${image.filename}`;
+            img.dataset.src = `/api/thumbnails/${image.filename}?t=${lastRotationTimestamp}`;
             img.alt = image.filename;
             img.loading = 'lazy';  // Native lazy loading as fallback
 
@@ -1500,6 +1528,37 @@
                 }
             } catch (error) {
                 showMessage(`Failed to delete image: ${error.message}`, 'error');
+            }
+        }
+
+        async function rotateImage(filename, angle) {
+            try {
+                showMessage(`Rotating image ${angle}°...`, 'success');
+                const response = await fetch(`/api/images/${filename}/rotate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ angle })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(`Image rotated ${angle}° successfully!`, 'success');
+
+                    // Update rotation timestamp for cache busting
+                    lastRotationTimestamp = Date.now();
+
+                    // Reload the modal image with cache busting to show rotated version
+                    modalImage.src = `/uploads/${filename}?t=${lastRotationTimestamp}`;
+
+                    // Refresh the gallery to show updated thumbnail
+                    loadImages();
+                } else {
+                    const errorMsg = getErrorMessage(data);
+                    showMessage(`Error: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to rotate image: ${error.message}`, 'error');
             }
         }
 

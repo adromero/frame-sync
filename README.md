@@ -24,6 +24,7 @@ A web-based photo frame server that can serve images to multiple displays on you
 - 📈 Storage quota management with configurable limits
 - 🔍 File content validation to prevent malicious uploads
 - 📝 Comprehensive error handling and logging
+- 🔄 Image rotation - rotate images 90°, 180°, or 270° directly in the web interface
 
 ## Hardware Requirements
 
@@ -113,6 +114,16 @@ The server runs on port 5000:
 1. Click on any image in the gallery to open the detail modal
 2. In the **Allowed Devices** section, check/uncheck devices
 3. Click "Save Devices" to update which displays can access the image
+
+#### Rotating Images
+
+1. Click on any image in the gallery to open the detail modal
+2. Use the rotation buttons at the bottom of the modal:
+   - **↺ 90°** - Rotate counter-clockwise (left)
+   - **↻ 180°** - Flip upside down
+   - **↻ 90°** - Rotate clockwise (right)
+3. The image and thumbnail will update immediately
+4. Original image file is permanently rotated
 
 #### Setting Your Display Name
 

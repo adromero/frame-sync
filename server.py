@@ -877,11 +877,13 @@ def update_image_devices_endpoint(filename):
         return jsonify({'error': 'Image not found'}), 404
 
 @app.route('/uploads/<filename>')
+@limiter.exempt  # Exempt image serving from rate limiting
 def uploaded_file(filename):
     """Serve uploaded images"""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/api/thumbnails/<filename>')
+@limiter.exempt  # Exempt thumbnails from rate limiting for smooth gallery browsing
 def thumbnail_file(filename):
     """Serve thumbnail images"""
     filename = secure_filename(filename)
@@ -901,6 +903,76 @@ def thumbnail_file(filename):
         return send_from_directory(THUMBNAILS_FOLDER, filename)
     else:
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/images/<filename>/rotate', methods=['POST'])
+@limiter.limit("60 per minute")
+def rotate_image(filename):
+    """API endpoint to rotate an image"""
+    try:
+        filename = secure_filename(filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+        if not os.path.exists(filepath):
+            return error_response('Image not found', 'FILE_NOT_FOUND', 404)
+
+        # Get rotation angle from request
+        data = request.get_json()
+        angle = data.get('angle', 90)
+
+        # Validate angle
+        if angle not in [90, 180, 270]:
+            return error_response(
+                'Invalid rotation angle. Must be 90, 180, or 270',
+                'INVALID_ANGLE',
+                400
+            )
+
+        # Rotate the image
+        try:
+            with Image.open(filepath) as img:
+                # Convert angle to Pillow's rotation direction
+                # Pillow rotates counter-clockwise, so we need to negate for clockwise rotation
+                # For UI: 90 = rotate right, 180 = flip, 270 = rotate left
+                rotated = img.rotate(-angle, expand=True)
+
+                # Save the rotated image
+                # Preserve format and quality
+                save_kwargs = {}
+                if img.format == 'JPEG':
+                    save_kwargs = {'quality': 95, 'optimize': True}
+                elif img.format == 'PNG':
+                    save_kwargs = {'optimize': True}
+
+                rotated.save(filepath, format=img.format, **save_kwargs)
+
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to rotate image {filename}: {e}")
+            return error_response(
+                f'Failed to rotate image: {str(e)}',
+                'ROTATION_ERROR',
+                500
+            )
+
+        # Regenerate thumbnail
+        thumb_success, thumb_error = generate_thumbnail(filename)
+        if not thumb_success:
+            logger.warning(f"Failed to regenerate thumbnail after rotation for {filename}: {thumb_error}")
+            # Don't fail the request, just log the warning
+
+        logger.info(f"Image rotated successfully: {filename} by {angle} degrees")
+
+        return success_response(
+            data={'filename': filename, 'angle': angle},
+            message='Image rotated successfully'
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error rotating image {filename}: {e}", exc_info=True)
+        return error_response(
+            'An unexpected error occurred during rotation',
+            'ROTATION_ERROR',
+            500
+        )
 
 if __name__ == '__main__':
     # Create upload directory if it doesn't exist
