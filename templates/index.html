@@ -1421,7 +1421,8 @@
             modalImage.src = `/uploads/${image.filename}`;
             modalImageName.textContent = image.filename;
 
-            const date = new Date(image.uploaded);
+            // Parse UTC timestamp and convert to local time
+            const date = new Date(image.uploaded + 'Z');
             modalImageMeta.textContent = `${(image.size / 1024).toFixed(1)} KB • ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 
             const isMyImage = image.uploader_ip === currentUserIp;
@@ -1956,8 +1957,9 @@
 
             const metaEl = document.createElement('div');
             metaEl.className = 'device-meta';
-            const registered = new Date(device.registered).toLocaleDateString();
-            const lastSeen = new Date(device.last_seen).toLocaleString();
+            // Parse UTC timestamps and convert to local time
+            const registered = new Date(device.registered + 'Z').toLocaleDateString();
+            const lastSeen = new Date(device.last_seen + 'Z').toLocaleString();
             metaEl.innerHTML = `Registered: ${registered} | Last seen: ${lastSeen}`;
 
             const idEl = document.createElement('div');
