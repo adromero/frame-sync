@@ -175,6 +175,31 @@
             background: #f0f0f0;
         }
 
+        /* Lazy loading skeleton */
+        .image-thumbnail.lazy-loading {
+            background: linear-gradient(
+                90deg,
+                #f0f0f0 25%,
+                #e0e0e0 50%,
+                #f0f0f0 75%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .image-thumbnail.lazy-loaded {
+            animation: fadeIn 0.5s ease-in;
+        }
+
         .image-info {
             padding: 10px;
         }
@@ -1303,6 +1328,9 @@
                     const card = createImageCard(image);
                     gallery.appendChild(card);
                 });
+
+                // Initialize lazy loading for all images
+                initLazyLoading();
             } catch (error) {
                 loading.style.display = 'none';
                 gallery.innerHTML = '<p style="text-align: center; color: #c92a2a;">Failed to load images</p>';
@@ -1353,9 +1381,16 @@
             card.addEventListener('click', () => openModal(image));
 
             const img = document.createElement('img');
-            img.className = 'image-thumbnail';
-            img.src = `/api/thumbnails/${image.filename}`;
+            img.className = 'image-thumbnail lazy-loading';
+            img.dataset.src = `/api/thumbnails/${image.filename}`;
             img.alt = image.filename;
+            img.loading = 'lazy';  // Native lazy loading as fallback
+
+            // Add load event to remove skeleton animation
+            img.onload = () => {
+                img.classList.remove('lazy-loading');
+                img.classList.add('lazy-loaded');
+            };
 
             const info = document.createElement('div');
             info.className = 'image-info';
@@ -1384,6 +1419,45 @@
             card.appendChild(info);
 
             return card;
+        }
+
+        // Lazy loading with Intersection Observer
+        function initLazyLoading() {
+            // Check if Intersection Observer is supported
+            if ('IntersectionObserver' in window) {
+                const imageObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            // Load the image
+                            if (img.dataset.src) {
+                                img.src = img.dataset.src;
+                                delete img.dataset.src;
+                            }
+                            // Stop observing this image
+                            observer.unobserve(img);
+                        }
+                    });
+                }, {
+                    // Start loading images 50px before they enter the viewport
+                    rootMargin: '50px',
+                    threshold: 0.01
+                });
+
+                // Observe all images with data-src attribute
+                const lazyImages = document.querySelectorAll('img[data-src]');
+                lazyImages.forEach(img => imageObserver.observe(img));
+            } else {
+                // Fallback for browsers without Intersection Observer support
+                // Just load all images immediately
+                const lazyImages = document.querySelectorAll('img[data-src]');
+                lazyImages.forEach(img => {
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        delete img.dataset.src;
+                    }
+                });
+            }
         }
 
         async function displayImage(filename) {

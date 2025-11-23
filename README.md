@@ -19,6 +19,7 @@ A web-based photo frame server that can serve images to multiple displays on you
 - 🛡️ Rate limiting to prevent abuse (10 uploads/min, 60 API requests/min per IP)
 - 📊 Thumbnail generation for faster gallery loading
 - 📄 Pagination support for large image collections
+- ⚡ Lazy loading with skeleton animations for optimal performance
 - 💾 SQLite database for reliable metadata storage
 - 📈 Storage quota management with configurable limits
 - 🔍 File content validation to prevent malicious uploads
