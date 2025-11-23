@@ -16,6 +16,13 @@ A web-based photo frame server that can serve images to multiple displays on you
 - 🌐 Accessible via local network or Tailscale
 - 🚀 Auto-starts on boot via systemd
 - 🔒 HTTPS support with SSL certificates
+- 🛡️ Rate limiting to prevent abuse (10 uploads/min, 60 API requests/min per IP)
+- 📊 Thumbnail generation for faster gallery loading
+- 📄 Pagination support for large image collections
+- 💾 SQLite database for reliable metadata storage
+- 📈 Storage quota management with configurable limits
+- 🔍 File content validation to prevent malicious uploads
+- 📝 Comprehensive error handling and logging
 
 ## Hardware Requirements
 
@@ -136,14 +143,15 @@ Connect any display device to fetch images via the HTTP API. See [multi-device-i
 ```
 frame-sync/
 ├── server.py                 # Flask web server with multi-user and multi-device support
+├── database.py               # SQLite database operations
 ├── display_image.py          # Display image on e-paper (optional)
 ├── rotate_image.py           # Hourly rotation logic (optional)
 ├── templates/
 │   └── index.html           # Web interface with device management and upload flow
 ├── uploads/                 # Uploaded images (gitignored)
-├── metadata.json            # Image and user metadata (gitignored)
-├── devices.json             # Device registry (gitignored)
-├── state.json               # Current image state (gitignored)
+│   └── thumbnails/          # Auto-generated thumbnails (gitignored)
+├── framesync.db             # SQLite database (gitignored)
+├── framesync.log            # Application logs (gitignored)
 ├── epaper_device_id.txt     # Persistent e-paper device UUID (gitignored)
 ├── cert.pem                 # SSL certificate (optional, gitignored)
 ├── key.pem                  # SSL private key (optional, gitignored)
@@ -160,8 +168,13 @@ frame-sync/
 
 Edit these settings in `server.py`:
 - **Port**: Default is 5000 (line 574-576)
-- **Max file size**: 16MB (line 14)
-- **Allowed file types**: PNG, JPG, JPEG, GIF, BMP (line 13)
+- **Max file size**: 16MB (line 30)
+- **Allowed file types**: PNG, JPG, JPEG, GIF, BMP (line 29)
+- **Storage quota**: 5GB default (line 32)
+- **Rate limits**:
+  - Upload endpoint: 10 per minute per IP
+  - API endpoints: 60 per minute per IP
+  - Global default: 200 per day, 50 per hour
 
 ### HTTPS/SSL Configuration
 
@@ -206,6 +219,12 @@ journalctl -u epaper-rotate.service -f  # if using e-paper
 - Verify `cert.pem` and `key.pem` exist in the project directory
 - Check certificate validity and permissions
 - Review logs: `journalctl -u frame-sync.service -f`
+
+**Rate limit exceeded (HTTP 429):**
+- Upload limit: 10 images per minute per IP address
+- API limit: 60 requests per minute per IP address
+- Wait for the rate limit window to reset (check `X-RateLimit-Reset` header)
+- Rate limits are per-IP to prevent abuse while allowing normal use
 
 ### Manual Image Display
 ```bash

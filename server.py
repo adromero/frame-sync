@@ -6,6 +6,8 @@ import logging
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
@@ -39,6 +41,15 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Enable CORS for all routes
 CORS(app)
+
+# Configure rate limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    headers_enabled=True  # Add rate limit headers to responses
+)
 
 # Global variable to track current image (temporary state, not persisted)
 current_image_state = None
@@ -471,6 +482,7 @@ def list_users():
     return jsonify({'users': users_with_counts})
 
 @app.route('/api/user/name', methods=['POST'])
+@limiter.limit("60 per minute")
 def set_user_name_endpoint():
     """API endpoint to set a display name for the current user"""
     data = request.get_json()
@@ -558,6 +570,7 @@ def storage_info():
         return error_response('Failed to retrieve storage information', 'STORAGE_ERROR', 500)
 
 @app.route('/api/upload', methods=['POST'])
+@limiter.limit("10 per minute")
 def upload_file():
     """API endpoint to handle image uploads"""
     try:
@@ -655,6 +668,7 @@ def upload_file():
         )
 
 @app.route('/api/delete/<filename>', methods=['DELETE'])
+@limiter.limit("60 per minute")
 def delete_image(filename):
     """API endpoint to delete an image"""
     try:
@@ -697,6 +711,7 @@ def delete_image(filename):
         )
 
 @app.route('/api/display/<filename>', methods=['POST'])
+@limiter.limit("60 per minute")
 def display_image(filename):
     """API endpoint to display an image on the e-paper"""
     filename = secure_filename(filename)
@@ -729,6 +744,7 @@ def display_image(filename):
 # Device Management API Endpoints
 
 @app.route('/api/devices/register', methods=['POST'])
+@limiter.limit("60 per minute")
 def register_device_endpoint():
     """API endpoint to register or update a device"""
     data = request.get_json()
@@ -768,6 +784,7 @@ def list_devices():
     return jsonify({'devices': devices_list})
 
 @app.route('/api/devices/<device_id>', methods=['DELETE'])
+@limiter.limit("60 per minute")
 def delete_device_endpoint(device_id):
     """API endpoint to delete a device"""
     if delete_device(device_id):
@@ -828,6 +845,7 @@ def get_next_image_for_device(device_id):
     })
 
 @app.route('/api/images/<filename>/devices', methods=['POST'])
+@limiter.limit("60 per minute")
 def update_image_devices_endpoint(filename):
     """API endpoint to update which devices can view an image"""
     filename = secure_filename(filename)
