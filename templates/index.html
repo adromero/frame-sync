@@ -663,6 +663,42 @@
             font-size: 1em;
             font-weight: 500;
         }
+
+        /* Progress bar styles */
+        .progress-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .progress-text {
+            margin-top: 8px;
+            text-align: center;
+            color: #0d9488;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
     </style>
 </head>
 <body>
@@ -695,6 +731,12 @@
                     <button class="btn" id="cancelUploadBtn" style="background: linear-gradient(135deg, #999 0%, #777 100%); padding: 12px 25px; font-size: 1em;">Cancel</button>
                     <button class="btn" id="confirmUploadBtn" style="padding: 12px 30px; font-size: 1.05em; font-weight: 700; box-shadow: 0 4px 12px rgba(20, 184, 166, 0.4);">Upload Images →</button>
                 </div>
+            </div>
+            <div id="progressContainer" class="progress-container">
+                <div class="progress-bar-wrapper">
+                    <div id="progressBar" class="progress-bar">0%</div>
+                </div>
+                <div id="progressText" class="progress-text">Preparing upload...</div>
             </div>
             <div id="message" class="message"></div>
         </div>
@@ -816,6 +858,9 @@
         const prevPageBtn = document.getElementById('prevPageBtn');
         const nextPageBtn = document.getElementById('nextPageBtn');
         const pageInfo = document.getElementById('pageInfo');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
 
         let currentImage = null;
         let currentPage = 1;
@@ -896,39 +941,98 @@
         }
 
         async function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
 
-            // Get selected devices
-            const selectedDevices = getSelectedUploadDevices();
-            if (selectedDevices.length > 0) {
-                formData.append('allowed_devices', JSON.stringify(selectedDevices));
-            }
+                // Get selected devices
+                const selectedDevices = getSelectedUploadDevices();
+                if (selectedDevices.length > 0) {
+                    formData.append('allowed_devices', JSON.stringify(selectedDevices));
+                }
 
-            try {
-                showMessage(`Uploading ${file.name}...`, 'success');
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
+                const xhr = new XMLHttpRequest();
+
+                // Show progress bar
+                progressContainer.style.display = 'block';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                progressText.textContent = `Uploading ${file.name}...`;
+
+                // Progress event listener
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percentComplete + '%';
+                        progressBar.textContent = percentComplete + '%';
+
+                        const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(2);
+                        const totalMB = (e.total / (1024 * 1024)).toFixed(2);
+                        progressText.textContent = `Uploading ${file.name}... ${uploadedMB}MB / ${totalMB}MB`;
+                    }
                 });
 
-                const data = await response.json();
+                // Load event listener (upload complete)
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
 
-                if (data.success) {
-                    const deviceMsg = selectedDevices.length > 0 ? ` (enabled on ${selectedDevices.length} display${selectedDevices.length > 1 ? 's' : ''})` : '';
-                    showMessage(`${file.name} uploaded successfully!${deviceMsg}`, 'success');
+                            if (data.success) {
+                                progressBar.style.width = '100%';
+                                progressBar.textContent = '100%';
+                                const deviceMsg = selectedDevices.length > 0 ? ` (enabled on ${selectedDevices.length} display${selectedDevices.length > 1 ? 's' : ''})` : '';
+                                progressText.textContent = `${file.name} uploaded successfully!${deviceMsg}`;
 
-                    // Update current user IP if we got it from the response
-                    if (data.uploader_ip && !currentUserIp) {
-                        currentUserIp = data.uploader_ip;
-                        updateUserDisplay();
+                                showMessage(`${file.name} uploaded successfully!${deviceMsg}`, 'success');
+
+                                // Update current user IP if we got it from the response
+                                if (data.uploader_ip && !currentUserIp) {
+                                    currentUserIp = data.uploader_ip;
+                                    updateUserDisplay();
+                                }
+
+                                // Hide progress bar after 2 seconds
+                                setTimeout(() => {
+                                    progressContainer.style.display = 'none';
+                                }, 2000);
+
+                                resolve(data);
+                            } else {
+                                progressContainer.style.display = 'none';
+                                showMessage(`Error: ${data.error}`, 'error');
+                                reject(new Error(data.error));
+                            }
+                        } catch (error) {
+                            progressContainer.style.display = 'none';
+                            showMessage(`Failed to parse response: ${error.message}`, 'error');
+                            reject(error);
+                        }
+                    } else {
+                        progressContainer.style.display = 'none';
+                        showMessage(`Upload failed with status: ${xhr.status}`, 'error');
+                        reject(new Error(`HTTP ${xhr.status}`));
                     }
-                } else {
-                    showMessage(`Error: ${data.error}`, 'error');
-                }
-            } catch (error) {
-                showMessage(`Failed to upload: ${error.message}`, 'error');
-            }
+                });
+
+                // Error event listener
+                xhr.addEventListener('error', () => {
+                    progressContainer.style.display = 'none';
+                    showMessage(`Failed to upload: Network error`, 'error');
+                    reject(new Error('Network error'));
+                });
+
+                // Abort event listener
+                xhr.addEventListener('abort', () => {
+                    progressContainer.style.display = 'none';
+                    showMessage(`Upload cancelled`, 'error');
+                    reject(new Error('Upload cancelled'));
+                });
+
+                // Open and send the request
+                xhr.open('POST', '/api/upload');
+                xhr.send(formData);
+            });
         }
 
         function updateUserDisplay() {

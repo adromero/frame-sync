@@ -111,6 +111,9 @@ def add_image_metadata(filename, uploader_ip, allowed_devices=None):
                 'gif': 'image/gif', 'bmp': 'image/bmp'}
     mime_type = mime_map.get(ext)
 
+    # Ensure user exists (create if needed) to satisfy foreign key constraint
+    db.create_or_update_user(uploader_ip, uploader_ip)
+
     # Create image record
     image = db.create_image(filename, uploader_ip, file_size, mime_type, width, height)
 
