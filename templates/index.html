@@ -168,6 +168,55 @@
             border: 3px solid #51cf66;
         }
 
+        .image-card.selected {
+            border: 3px solid #4dabf7;
+            background: #e7f5ff;
+        }
+
+        .image-checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            z-index: 10;
+            accent-color: #4dabf7;
+        }
+
+        .bulk-toolbar {
+            display: none;
+            background: white;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .bulk-toolbar.active {
+            display: flex;
+        }
+
+        .bulk-toolbar-label {
+            font-weight: 600;
+            color: #333;
+            margin-right: auto;
+        }
+
+        .bulk-toolbar-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-bulk {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
         .image-thumbnail {
             width: 100%;
             height: 150px;
@@ -881,6 +930,15 @@
                     <option value="me">My Photos</option>
                 </select>
             </div>
+            <div id="bulkToolbar" class="bulk-toolbar">
+                <span class="bulk-toolbar-label" id="bulkToolbarLabel">0 images selected</span>
+                <div class="bulk-toolbar-actions">
+                    <button class="btn btn-bulk" id="selectAllBtn" style="background: #4dabf7;">Select All</button>
+                    <button class="btn btn-bulk" id="deselectAllBtn" style="background: #999;">Deselect All</button>
+                    <button class="btn btn-bulk btn-danger" id="bulkDeleteBtn">Delete Selected</button>
+                    <button class="btn btn-bulk btn-success" id="bulkChangeDevicesBtn">Change Devices</button>
+                </div>
+            </div>
             <div id="loading" class="loading">
                 <div class="spinner"></div>
                 <div>Loading images...</div>
@@ -929,6 +987,25 @@
         </div>
     </div>
 
+    <!-- Modal for bulk device assignment -->
+    <div id="bulkDeviceModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="modal-close" id="bulkDeviceModalClose">&times;</span>
+            <div class="modal-details">
+                <h3>Change Devices for Selected Images</h3>
+                <p style="color: #666; margin: 10px 0;">Select which devices should display the <span id="bulkSelectionCount">0</span> selected images:</p>
+                <div style="margin: 15px 0;">
+                    <div id="bulkDevicesList" class="modal-devices-list">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn" id="bulkDeviceModalCancel" style="background: #999;">Cancel</button>
+                    <button class="btn btn-success" id="bulkDeviceModalSave">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -968,6 +1045,18 @@
         const progressContainer = document.getElementById('progressContainer');
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
+        const bulkToolbar = document.getElementById('bulkToolbar');
+        const bulkToolbarLabel = document.getElementById('bulkToolbarLabel');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        const bulkChangeDevicesBtn = document.getElementById('bulkChangeDevicesBtn');
+        const bulkDeviceModal = document.getElementById('bulkDeviceModal');
+        const bulkDeviceModalClose = document.getElementById('bulkDeviceModalClose');
+        const bulkDeviceModalCancel = document.getElementById('bulkDeviceModalCancel');
+        const bulkDeviceModalSave = document.getElementById('bulkDeviceModalSave');
+        const bulkSelectionCount = document.getElementById('bulkSelectionCount');
+        const bulkDevicesList = document.getElementById('bulkDevicesList');
 
         let currentImage = null;
         let currentPage = 1;
@@ -980,6 +1069,7 @@
         let currentImageFilename = null;
         let currentModalImage = null;
         let pendingFiles = null;
+        let selectedImages = new Set();  // Track selected image filenames for bulk operations
 
         // Modal event listeners
         modalClose.addEventListener('click', closeModal);
@@ -1404,9 +1494,27 @@
             if (image.filename === currentImage) {
                 card.classList.add('current');
             }
+            if (selectedImages.has(image.filename)) {
+                card.classList.add('selected');
+            }
 
-            // Make card clickable
-            card.addEventListener('click', () => openModal(image));
+            // Add checkbox for bulk selection
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'image-checkbox';
+            checkbox.checked = selectedImages.has(image.filename);
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();  // Prevent card click
+                toggleImageSelection(image.filename, card, checkbox);
+            });
+            card.appendChild(checkbox);
+
+            // Make card clickable (except checkbox)
+            card.addEventListener('click', (e) => {
+                if (e.target !== checkbox) {
+                    openModal(image);
+                }
+            });
 
             const img = document.createElement('img');
             img.className = 'image-thumbnail lazy-loading';
@@ -2026,6 +2134,201 @@
                 showMessage(`Failed to update devices: ${error.message}`, 'error');
             }
         }
+
+        // Bulk operation functions
+        function toggleImageSelection(filename, card, checkbox) {
+            if (selectedImages.has(filename)) {
+                selectedImages.delete(filename);
+                card.classList.remove('selected');
+                checkbox.checked = false;
+            } else {
+                selectedImages.add(filename);
+                card.classList.add('selected');
+                checkbox.checked = true;
+            }
+            updateBulkToolbar();
+        }
+
+        function updateBulkToolbar() {
+            const count = selectedImages.size;
+            if (count > 0) {
+                bulkToolbar.classList.add('active');
+                bulkToolbarLabel.textContent = `${count} image${count > 1 ? 's' : ''} selected`;
+            } else {
+                bulkToolbar.classList.remove('active');
+            }
+        }
+
+        function selectAllImages() {
+            const cards = gallery.querySelectorAll('.image-card');
+            cards.forEach(card => {
+                const checkbox = card.querySelector('.image-checkbox');
+                const img = card.querySelector('img');
+                const filename = img.alt;
+                selectedImages.add(filename);
+                card.classList.add('selected');
+                checkbox.checked = true;
+            });
+            updateBulkToolbar();
+        }
+
+        function deselectAllImages() {
+            selectedImages.clear();
+            const cards = gallery.querySelectorAll('.image-card');
+            cards.forEach(card => {
+                card.classList.remove('selected');
+                const checkbox = card.querySelector('.image-checkbox');
+                checkbox.checked = false;
+            });
+            updateBulkToolbar();
+        }
+
+        async function bulkDeleteImages() {
+            if (selectedImages.size === 0) {
+                showMessage('No images selected', 'error');
+                return;
+            }
+
+            const count = selectedImages.size;
+            if (!confirm(`Delete ${count} selected image${count > 1 ? 's' : ''}?`)) {
+                return;
+            }
+
+            setButtonLoading(bulkDeleteBtn, true);
+
+            try {
+                const response = await fetch('/api/images/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filenames: Array.from(selectedImages) })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const deletedCount = data.data?.deleted_count || 0;
+                    showMessage(`Successfully deleted ${deletedCount} image${deletedCount > 1 ? 's' : ''}`, 'success');
+                    selectedImages.clear();
+                    updateBulkToolbar();
+                    await loadImages();
+                    await loadStorageInfo();
+                } else {
+                    const errorMsg = getErrorMessage(data);
+                    showMessage(`Error: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to delete images: ${error.message}`, 'error');
+            } finally {
+                setButtonLoading(bulkDeleteBtn, false);
+            }
+        }
+
+        function openBulkDeviceModal() {
+            if (selectedImages.size === 0) {
+                showMessage('No images selected', 'error');
+                return;
+            }
+
+            bulkSelectionCount.textContent = selectedImages.size;
+            renderBulkDeviceCheckboxes();
+            bulkDeviceModal.classList.add('active');
+        }
+
+        function closeBulkDeviceModal() {
+            bulkDeviceModal.classList.remove('active');
+        }
+
+        function renderBulkDeviceCheckboxes() {
+            bulkDevicesList.innerHTML = '';
+
+            if (allDevices.length === 0) {
+                bulkDevicesList.innerHTML = '<p style="color: #888; padding: 10px;">No devices available. Add a device first.</p>';
+                return;
+            }
+
+            allDevices.forEach(device => {
+                const item = document.createElement('div');
+                item.className = 'device-checkbox-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `bulk-device-${device.device_id}`;
+                checkbox.value = device.device_id;
+                checkbox.checked = false;  // Default unchecked
+
+                const label = document.createElement('label');
+                label.className = 'device-checkbox-label';
+                label.htmlFor = `bulk-device-${device.device_id}`;
+                label.textContent = `${device.name} (${device.device_type})`;
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+
+                item.addEventListener('click', (e) => {
+                    if (e.target !== checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                    }
+                });
+
+                bulkDevicesList.appendChild(item);
+            });
+        }
+
+        async function saveBulkDevices() {
+            if (selectedImages.size === 0) {
+                showMessage('No images selected', 'error');
+                closeBulkDeviceModal();
+                return;
+            }
+
+            const checkboxes = bulkDevicesList.querySelectorAll('input[type="checkbox"]');
+            const allowedDevices = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+
+            setButtonLoading(bulkDeviceModalSave, true);
+
+            try {
+                const response = await fetch('/api/images/bulk-update-devices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filenames: Array.from(selectedImages),
+                        allowed_devices: allowedDevices
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const updatedCount = data.data?.updated_count || 0;
+                    showMessage(`Updated devices for ${updatedCount} image${updatedCount > 1 ? 's' : ''}`, 'success');
+                    selectedImages.clear();
+                    updateBulkToolbar();
+                    closeBulkDeviceModal();
+                    await loadImages();
+                } else {
+                    const errorMsg = getErrorMessage(data);
+                    showMessage(`Error: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to update devices: ${error.message}`, 'error');
+            } finally {
+                setButtonLoading(bulkDeviceModalSave, false);
+            }
+        }
+
+        // Bulk operation event listeners
+        selectAllBtn.addEventListener('click', selectAllImages);
+        deselectAllBtn.addEventListener('click', deselectAllImages);
+        bulkDeleteBtn.addEventListener('click', bulkDeleteImages);
+        bulkChangeDevicesBtn.addEventListener('click', openBulkDeviceModal);
+        bulkDeviceModalClose.addEventListener('click', closeBulkDeviceModal);
+        bulkDeviceModalCancel.addEventListener('click', closeBulkDeviceModal);
+        bulkDeviceModalSave.addEventListener('click', saveBulkDevices);
+        bulkDeviceModal.addEventListener('click', (e) => {
+            if (e.target === bulkDeviceModal) closeBulkDeviceModal();
+        });
 
         async function initializeApp() {
             // Load initial images

@@ -25,6 +25,7 @@ A web-based photo frame server that can serve images to multiple displays on you
 - 🔍 File content validation to prevent malicious uploads
 - 📝 Comprehensive error handling and logging
 - 🔄 Image rotation - rotate images 90°, 180°, or 270° directly in the web interface
+- 🗂️ Bulk operations - select and manage multiple images at once (delete, change devices)
 
 ## Hardware Requirements
 
@@ -124,6 +125,20 @@ The server runs on port 5000:
    - **↻ 90°** - Rotate clockwise (right)
 3. The image and thumbnail will update immediately
 4. Original image file is permanently rotated
+
+#### Bulk Operations
+
+Manage multiple images at once for faster organization:
+
+1. **Select images**: Click the checkboxes on image thumbnails to select them
+2. **Selection toolbar**: Appears when images are selected, showing count
+3. **Bulk actions**:
+   - **Select All** - Select all images on the current page
+   - **Deselect All** - Clear all selections
+   - **Delete Selected** - Delete multiple images at once (with confirmation)
+   - **Change Devices** - Update device permissions for all selected images
+4. **Bulk device assignment**: Opens a modal to select which devices can view all selected images
+5. Gallery automatically updates after bulk operations complete
 
 #### Setting Your Display Name
 

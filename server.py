@@ -974,6 +974,182 @@ def rotate_image(filename):
             500
         )
 
+@app.route('/api/images/bulk-delete', methods=['POST'])
+@limiter.limit("60 per minute")
+def bulk_delete_images():
+    """API endpoint to delete multiple images at once"""
+    try:
+        data = request.get_json()
+        filenames = data.get('filenames', [])
+
+        if not isinstance(filenames, list):
+            return error_response('filenames must be an array', 'INVALID_INPUT', 400)
+
+        if not filenames:
+            return error_response('No filenames provided', 'EMPTY_LIST', 400)
+
+        if len(filenames) > 100:
+            return error_response('Cannot delete more than 100 images at once', 'TOO_MANY_FILES', 400)
+
+        deleted_count = 0
+        errors = []
+
+        for filename in filenames:
+            try:
+                filename = secure_filename(filename)
+                if not filename:
+                    errors.append({'filename': filename, 'error': 'Invalid filename'})
+                    continue
+
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                thumb_path = os.path.join(THUMBNAILS_FOLDER, filename)
+
+                # Delete main image
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    deleted_count += 1
+
+                # Delete thumbnail
+                if os.path.exists(thumb_path):
+                    os.remove(thumb_path)
+
+                # Remove from database
+                db.delete_image(filename)
+
+                logger.info(f"Bulk deleted image: {filename}")
+
+            except (OSError, IOError) as e:
+                logger.error(f"Failed to delete image {filename}: {e}")
+                errors.append({'filename': filename, 'error': str(e)})
+            except Exception as e:
+                logger.error(f"Unexpected error deleting image {filename}: {e}", exc_info=True)
+                errors.append({'filename': filename, 'error': 'Unexpected error'})
+
+        # Prepare response
+        response_data = {
+            'deleted_count': deleted_count,
+            'requested_count': len(filenames),
+            'errors': errors
+        }
+
+        if deleted_count == 0:
+            return error_response(
+                'Failed to delete any images',
+                'BULK_DELETE_FAILED',
+                500
+            )
+        elif errors:
+            # Partial success
+            return jsonify({
+                'success': True,
+                'data': response_data,
+                'message': f'Deleted {deleted_count} of {len(filenames)} images (some errors occurred)'
+            })
+        else:
+            # Full success
+            return success_response(
+                data=response_data,
+                message=f'Successfully deleted {deleted_count} images'
+            )
+
+    except Exception as e:
+        logger.error(f"Unexpected error in bulk delete: {e}", exc_info=True)
+        return error_response(
+            'An unexpected error occurred during bulk delete',
+            'BULK_DELETE_ERROR',
+            500
+        )
+
+@app.route('/api/images/bulk-update-devices', methods=['POST'])
+@limiter.limit("60 per minute")
+def bulk_update_devices():
+    """API endpoint to update device permissions for multiple images at once"""
+    try:
+        data = request.get_json()
+        filenames = data.get('filenames', [])
+        allowed_devices = data.get('allowed_devices', [])
+
+        if not isinstance(filenames, list):
+            return error_response('filenames must be an array', 'INVALID_INPUT', 400)
+
+        if not isinstance(allowed_devices, list):
+            return error_response('allowed_devices must be an array', 'INVALID_INPUT', 400)
+
+        if not filenames:
+            return error_response('No filenames provided', 'EMPTY_LIST', 400)
+
+        if len(filenames) > 100:
+            return error_response('Cannot update more than 100 images at once', 'TOO_MANY_FILES', 400)
+
+        # Validate that all device IDs exist
+        all_devices = get_all_devices()
+        for device_id in allowed_devices:
+            if device_id not in all_devices:
+                return error_response(f'Device not found: {device_id}', 'DEVICE_NOT_FOUND', 404)
+
+        updated_count = 0
+        errors = []
+
+        for filename in filenames:
+            try:
+                filename = secure_filename(filename)
+                if not filename:
+                    errors.append({'filename': filename, 'error': 'Invalid filename'})
+                    continue
+
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+                if not os.path.exists(filepath):
+                    errors.append({'filename': filename, 'error': 'Image not found'})
+                    continue
+
+                # Update device permissions
+                if update_image_devices(filename, allowed_devices):
+                    updated_count += 1
+                    logger.info(f"Bulk updated devices for image: {filename}")
+                else:
+                    errors.append({'filename': filename, 'error': 'Failed to update'})
+
+            except Exception as e:
+                logger.error(f"Unexpected error updating devices for {filename}: {e}", exc_info=True)
+                errors.append({'filename': filename, 'error': 'Unexpected error'})
+
+        # Prepare response
+        response_data = {
+            'updated_count': updated_count,
+            'requested_count': len(filenames),
+            'allowed_devices': allowed_devices,
+            'errors': errors
+        }
+
+        if updated_count == 0:
+            return error_response(
+                'Failed to update any images',
+                'BULK_UPDATE_FAILED',
+                500
+            )
+        elif errors:
+            # Partial success
+            return jsonify({
+                'success': True,
+                'data': response_data,
+                'message': f'Updated {updated_count} of {len(filenames)} images (some errors occurred)'
+            })
+        else:
+            # Full success
+            return success_response(
+                data=response_data,
+                message=f'Successfully updated {updated_count} images'
+            )
+
+    except Exception as e:
+        logger.error(f"Unexpected error in bulk update: {e}", exc_info=True)
+        return error_response(
+            'An unexpected error occurred during bulk update',
+            'BULK_UPDATE_ERROR',
+            500
+        )
+
 if __name__ == '__main__':
     # Create upload directory if it doesn't exist
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)

@@ -2,9 +2,9 @@
   "version": "1.0",
   "project": "FrameSync Comprehensive Upgrade",
   "started": "2025-11-22",
-  "last_updated": "2025-11-22T23:09:00",
+  "last_updated": "2025-11-22T23:35:00",
   "current_checkpoint": "CP3",
-  "current_task": "CP3-T5",
+  "current_task": "CP3-T2",
   "overall_status": "in_progress",
   "valid_status_values": ["not_started", "in_progress", "completed", "awaiting_testing", "skipped"],
   "valid_priority_values": ["critical", "high", "medium", "low"],
@@ -632,49 +632,51 @@
           "name": "Add Bulk Operations",
           "priority": "high",
           "phase": "phase_3",
-          "status": "not_started",
+          "status": "completed",
           "requires_testing": true,
           "estimated_context_usage": "30%",
+          "completed_date": "2025-11-22",
+          "tested_date": "2025-11-22",
           "subtasks": [
             {
               "id": "CP3-T2-S1",
               "description": "Add checkboxes to image gallery items",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S2",
               "description": "Add 'Select All' / 'Deselect All' controls",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S3",
               "description": "Create bulk actions toolbar (delete, change devices)",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S4",
               "description": "Add /api/images/bulk-delete endpoint",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S5",
               "description": "Add /api/images/bulk-update-devices endpoint",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S6",
               "description": "Implement bulk delete functionality",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S7",
               "description": "Implement bulk device assignment functionality",
-              "status": "not_started"
+              "status": "completed"
             },
             {
               "id": "CP3-T2-S8",
               "description": "Test bulk operations with multiple selections",
-              "status": "not_started",
+              "status": "completed",
               "testing_breakpoint": true
             }
           ]
