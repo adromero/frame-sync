@@ -699,6 +699,72 @@
             font-weight: 600;
             font-size: 0.95em;
         }
+
+        /* Storage quota styles */
+        .storage-info {
+            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border: 2px solid #14b8a6;
+        }
+
+        .storage-info.warning {
+            background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+            border-color: #f97316;
+        }
+
+        .storage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .storage-title {
+            font-weight: 600;
+            color: #0d9488;
+            font-size: 0.95em;
+        }
+
+        .storage-info.warning .storage-title {
+            color: #c2410c;
+        }
+
+        .storage-text {
+            color: #0f766e;
+            font-size: 0.9em;
+        }
+
+        .storage-info.warning .storage-text {
+            color: #9a3412;
+        }
+
+        .storage-bar-wrapper {
+            width: 100%;
+            height: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-top: 10px;
+        }
+
+        .storage-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.75em;
+        }
+
+        .storage-info.warning .storage-bar {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        }
     </style>
 </head>
 <body>
@@ -709,6 +775,15 @@
         </div>
 
         <div class="card">
+            <div id="storageInfo" class="storage-info" style="display: none;">
+                <div class="storage-header">
+                    <span class="storage-title">💾 Storage Usage</span>
+                    <span class="storage-text" id="storageText">Loading...</span>
+                </div>
+                <div class="storage-bar-wrapper">
+                    <div id="storageBar" class="storage-bar" style="width: 0%;">0%</div>
+                </div>
+            </div>
             <div class="upload-area" id="uploadArea">
                 <div class="upload-icon">📷</div>
                 <div class="upload-text">Click or drag image here to upload</div>
@@ -939,6 +1014,7 @@
 
             loadImages();
             loadUsers(); // Refresh user list after uploads
+            loadStorageInfo(); // Refresh storage info after uploads
         }
 
         async function uploadFile(file) {
@@ -1344,6 +1420,7 @@
                     showMessage('Image deleted successfully', 'success');
                     loadImages();
                     loadUsers(); // Refresh user list
+                    loadStorageInfo(); // Refresh storage info
                 } else {
                     showMessage(`Error: ${data.error}`, 'error');
                 }
@@ -1579,6 +1656,43 @@
             }
         }
 
+        // Storage Info Functions
+        async function loadStorageInfo() {
+            try {
+                const response = await fetch('/api/storage');
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
+                    const storageInfo = document.getElementById('storageInfo');
+                    const storageText = document.getElementById('storageText');
+                    const storageBar = document.getElementById('storageBar');
+
+                    // Update text
+                    storageText.textContent = `${data.total_formatted} / ${data.quota_formatted} (${data.image_count} images)`;
+
+                    // Update progress bar
+                    const percent = Math.min(100, data.quota_used_percent);
+                    storageBar.style.width = `${percent}%`;
+                    storageBar.textContent = `${percent.toFixed(1)}%`;
+
+                    // Show/hide warning state
+                    if (data.is_warning) {
+                        storageInfo.classList.add('warning');
+                    } else {
+                        storageInfo.classList.remove('warning');
+                    }
+
+                    // Show the storage info
+                    storageInfo.style.display = 'block';
+                } else {
+                    console.error('Failed to load storage info:', result.error);
+                }
+            } catch (error) {
+                console.error('Failed to load storage info:', error);
+            }
+        }
+
         // Upload Device Selection Functions
         function populateUploadDevicesList() {
             const uploadDevicesList = document.getElementById('uploadDevicesList');
@@ -1789,6 +1903,9 @@
 
             // Load devices
             await loadDevices();
+
+            // Load storage info
+            await loadStorageInfo();
 
             // Setup upload device selection
             setupUploadDeviceSelection();

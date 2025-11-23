@@ -30,6 +30,8 @@ THUMBNAILS_FOLDER = os.path.join(UPLOAD_FOLDER, 'thumbnails')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
 THUMBNAIL_SIZE = (200, 200)  # Thumbnail dimensions
+STORAGE_QUOTA = 5 * 1024 * 1024 * 1024  # 5GB default storage quota
+QUOTA_WARNING_THRESHOLD = 0.90  # Warn when 90% full
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -154,6 +156,68 @@ def generate_thumbnail(filename):
         error_msg = f"Unexpected error generating thumbnail: {str(e)}"
         logger.error(f"Unexpected error generating thumbnail for {filename}: {e}", exc_info=True)
         return False, error_msg
+
+def calculate_storage_usage():
+    """
+    Calculate current storage usage for uploads and thumbnails.
+    Returns dict with usage statistics in bytes.
+    """
+    try:
+        total_size = 0
+        image_count = 0
+
+        # Calculate uploads folder size
+        if os.path.exists(UPLOAD_FOLDER):
+            for root, dirs, files in os.walk(UPLOAD_FOLDER):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    try:
+                        # Don't count thumbnails directory in main uploads
+                        if not filepath.startswith(THUMBNAILS_FOLDER):
+                            file_size = os.path.getsize(filepath)
+                            total_size += file_size
+                            image_count += 1
+                    except (OSError, IOError) as e:
+                        logger.warning(f"Could not get size for {filepath}: {e}")
+
+        # Calculate thumbnails folder size
+        thumbnail_size = 0
+        thumbnail_count = 0
+        if os.path.exists(THUMBNAILS_FOLDER):
+            for file in os.listdir(THUMBNAILS_FOLDER):
+                filepath = os.path.join(THUMBNAILS_FOLDER, file)
+                try:
+                    if os.path.isfile(filepath):
+                        file_size = os.path.getsize(filepath)
+                        thumbnail_size += file_size
+                        thumbnail_count += 1
+                except (OSError, IOError) as e:
+                    logger.warning(f"Could not get size for thumbnail {filepath}: {e}")
+
+        total_with_thumbnails = total_size + thumbnail_size
+
+        return {
+            'total_bytes': total_with_thumbnails,
+            'images_bytes': total_size,
+            'thumbnails_bytes': thumbnail_size,
+            'image_count': image_count,
+            'thumbnail_count': thumbnail_count,
+            'quota_bytes': STORAGE_QUOTA,
+            'quota_used_percent': (total_with_thumbnails / STORAGE_QUOTA * 100) if STORAGE_QUOTA > 0 else 0,
+            'quota_available_bytes': max(0, STORAGE_QUOTA - total_with_thumbnails)
+        }
+    except Exception as e:
+        logger.error(f"Error calculating storage usage: {e}", exc_info=True)
+        return {
+            'total_bytes': 0,
+            'images_bytes': 0,
+            'thumbnails_bytes': 0,
+            'image_count': 0,
+            'thumbnail_count': 0,
+            'quota_bytes': STORAGE_QUOTA,
+            'quota_used_percent': 0,
+            'quota_available_bytes': STORAGE_QUOTA
+        }
 
 def add_image_metadata(filename, uploader_ip, allowed_devices=None):
     """Add metadata for a newly uploaded image"""
@@ -454,6 +518,45 @@ def server_info():
         'port': 5000
     })
 
+@app.route('/api/storage')
+def storage_info():
+    """API endpoint to get storage usage statistics"""
+    try:
+        storage = calculate_storage_usage()
+
+        # Format for human readability
+        def format_bytes(bytes_val):
+            """Convert bytes to human-readable format"""
+            for unit in ['B', 'KB', 'MB', 'GB']:
+                if bytes_val < 1024.0:
+                    return f"{bytes_val:.2f} {unit}"
+                bytes_val /= 1024.0
+            return f"{bytes_val:.2f} TB"
+
+        # Check if approaching quota
+        is_warning = storage['quota_used_percent'] >= (QUOTA_WARNING_THRESHOLD * 100)
+
+        return success_response(data={
+            'total_bytes': storage['total_bytes'],
+            'total_formatted': format_bytes(storage['total_bytes']),
+            'images_bytes': storage['images_bytes'],
+            'images_formatted': format_bytes(storage['images_bytes']),
+            'thumbnails_bytes': storage['thumbnails_bytes'],
+            'thumbnails_formatted': format_bytes(storage['thumbnails_bytes']),
+            'quota_bytes': storage['quota_bytes'],
+            'quota_formatted': format_bytes(storage['quota_bytes']),
+            'quota_used_percent': round(storage['quota_used_percent'], 2),
+            'quota_available_bytes': storage['quota_available_bytes'],
+            'quota_available_formatted': format_bytes(storage['quota_available_bytes']),
+            'image_count': storage['image_count'],
+            'thumbnail_count': storage['thumbnail_count'],
+            'is_warning': is_warning,
+            'warning_threshold_percent': QUOTA_WARNING_THRESHOLD * 100
+        })
+    except Exception as e:
+        logger.error(f"Error getting storage info: {e}", exc_info=True)
+        return error_response('Failed to retrieve storage information', 'STORAGE_ERROR', 500)
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """API endpoint to handle image uploads"""
@@ -471,6 +574,23 @@ def upload_file():
                 'File type not allowed. Use PNG, JPG, GIF, or BMP',
                 'INVALID_FILE_TYPE',
                 400
+            )
+
+        # Check storage quota before accepting upload
+        storage = calculate_storage_usage()
+
+        # Seek to end to get file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning for actual save
+
+        if storage['quota_available_bytes'] < file_size:
+            used_gb = storage['total_bytes'] / (1024**3)
+            quota_gb = STORAGE_QUOTA / (1024**3)
+            return error_response(
+                f'Storage quota exceeded. Using {used_gb:.2f} GB of {quota_gb:.2f} GB. Please delete some images.',
+                'QUOTA_EXCEEDED',
+                507  # HTTP 507 Insufficient Storage
             )
 
         filename = secure_filename(file.filename)
