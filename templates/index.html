@@ -718,11 +718,12 @@
             <div id="uploadDeviceSelection" style="display: none; margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%); border-radius: 12px; border: 3px solid #14b8a6; box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);">
                 <h3 style="margin: 0 0 15px 0; font-size: 1.1em; color: #0d9488; font-weight: 700;">📱 Select Displays for Upload</h3>
                 <p style="margin: 0 0 15px 0; color: #0f766e; font-size: 0.9em;">Choose which devices should receive these images:</p>
-                <div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 8px;">
+                <div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #0d9488; font-size: 1em;">
                         <input type="checkbox" id="selectAllDisplays" style="cursor: pointer; width: 20px; height: 20px;">
                         <span>✓ All Displays</span>
                     </label>
+                    <button class="btn btn-small" id="clearPreferencesBtn" style="background: linear-gradient(135deg, #fb8c00 0%, #f57c00 100%); padding: 6px 14px; font-size: 0.85em; white-space: nowrap;" title="Clear saved device preferences">Clear Saved Preferences</button>
                 </div>
                 <div id="uploadDevicesList" style="display: grid; gap: 10px; max-height: 180px; overflow-y: auto; padding: 10px; background: white; border-radius: 8px;">
                     <!-- Device checkboxes will be populated here -->
@@ -1572,6 +1573,9 @@
                 return;
             }
 
+            // Load saved device preferences
+            const savedPreferences = loadDevicePreferences();
+
             allDevices.forEach(device => {
                 const label = document.createElement('label');
                 label.style.cssText = 'display: flex; align-items: center; gap: 10px; cursor: pointer; color: #333; padding: 10px; background: #f8f9fa; border-radius: 6px; transition: all 0.2s; border: 2px solid transparent;';
@@ -1581,6 +1585,11 @@
                 checkbox.className = 'upload-device-checkbox';
                 checkbox.value = device.device_id;
                 checkbox.style.cssText = 'cursor: pointer; width: 18px; height: 18px;';
+
+                // Pre-select checkbox if it was previously selected
+                if (savedPreferences.includes(device.device_id)) {
+                    checkbox.checked = true;
+                }
 
                 const span = document.createElement('span');
                 span.style.cssText = 'font-weight: 600; font-size: 0.95em;';
@@ -1601,11 +1610,65 @@
 
                 uploadDevicesList.appendChild(label);
             });
+
+            // Update "Select All" checkbox state after populating
+            updateSelectAllCheckbox();
+        }
+
+        function updateSelectAllCheckbox() {
+            const selectAllDisplays = document.getElementById('selectAllDisplays');
+            if (selectAllDisplays) {
+                const allCheckboxes = document.querySelectorAll('.upload-device-checkbox');
+                const checkedCheckboxes = document.querySelectorAll('.upload-device-checkbox:checked');
+                selectAllDisplays.checked = allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+            }
         }
 
         function getSelectedUploadDevices() {
             const checkboxes = document.querySelectorAll('.upload-device-checkbox:checked');
-            return Array.from(checkboxes).map(cb => cb.value);
+            const selectedDevices = Array.from(checkboxes).map(cb => cb.value);
+
+            // Save device selection to localStorage for future uploads
+            saveDevicePreferences(selectedDevices);
+
+            return selectedDevices;
+        }
+
+        function saveDevicePreferences(deviceIds) {
+            try {
+                localStorage.setItem('frameSync_preferredDevices', JSON.stringify(deviceIds));
+            } catch (error) {
+                console.warn('Failed to save device preferences to localStorage:', error);
+            }
+        }
+
+        function loadDevicePreferences() {
+            try {
+                const saved = localStorage.getItem('frameSync_preferredDevices');
+                return saved ? JSON.parse(saved) : [];
+            } catch (error) {
+                console.warn('Failed to load device preferences from localStorage:', error);
+                return [];
+            }
+        }
+
+        function clearDevicePreferences() {
+            try {
+                localStorage.removeItem('frameSync_preferredDevices');
+                showMessage('Device preferences cleared!', 'success');
+
+                // Uncheck all device checkboxes
+                const checkboxes = document.querySelectorAll('.upload-device-checkbox');
+                checkboxes.forEach(cb => cb.checked = false);
+
+                // Update select all checkbox
+                const selectAllDisplays = document.getElementById('selectAllDisplays');
+                if (selectAllDisplays) {
+                    selectAllDisplays.checked = false;
+                }
+            } catch (error) {
+                console.warn('Failed to clear device preferences:', error);
+            }
         }
 
         function setupUploadDeviceSelection() {
@@ -1774,6 +1837,12 @@
             uploadDeviceSelection.style.display = 'none';
             pendingFiles = null;
             fileInput.value = '';
+        });
+
+        // Clear device preferences button
+        document.getElementById('clearPreferencesBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            clearDevicePreferences();
         });
 
         // Initialize app on page load
