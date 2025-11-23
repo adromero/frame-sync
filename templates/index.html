@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FrameSync</title>
+    <!-- Version: 2025-11-23-mobile-improvements -->
     <style>
         * {
             margin: 0;
@@ -611,6 +612,17 @@
             font-family: monospace;
             font-size: 0.75em;
             color: #999;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .device-id:hover {
+            color: #14b8a6;
+        }
+
+        .device-id.expanded {
+            word-break: break-all;
         }
 
         .btn-small {
@@ -696,6 +708,66 @@
             .ip-value {
                 font-size: 0.9em;
                 max-width: 100%;
+            }
+
+            /* Mobile-specific device improvements */
+            .device-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .device-info {
+                width: 100%;
+            }
+
+            .device-name {
+                font-size: 0.95em;
+            }
+
+            .device-meta {
+                font-size: 0.8em;
+                word-break: break-word;
+            }
+
+            .device-id {
+                font-size: 0.7em;
+            }
+
+            .btn-small {
+                width: 100%;
+            }
+
+            /* Bulk toolbar on mobile */
+            .bulk-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .bulk-toolbar-label {
+                margin-bottom: 10px;
+                text-align: center;
+            }
+
+            .bulk-toolbar-actions {
+                width: 100%;
+            }
+
+            .btn-bulk {
+                flex: 1;
+                min-width: 0;
+            }
+
+            /* Modal actions on mobile */
+            .modal-actions {
+                flex-wrap: wrap;
+            }
+
+            .modal-actions .btn {
+                flex: 1 1 calc(50% - 5px);
+                min-width: 0;
+                padding: 10px 8px;
+                font-size: 0.85em;
             }
         }
 
@@ -1890,7 +1962,27 @@
 
             const idEl = document.createElement('div');
             idEl.className = 'device-id';
-            idEl.textContent = `ID: ${device.device_id}`;
+            const isMobile = window.innerWidth <= 768;
+            const shortId = device.device_id.substring(0, 8) + '...';
+            idEl.textContent = `ID: ${isMobile ? shortId : device.device_id}`;
+            idEl.dataset.fullId = device.device_id;
+            idEl.dataset.shortId = shortId;
+            idEl.dataset.expanded = 'false';
+            idEl.title = 'Click to toggle full ID';
+
+            // Add click handler to toggle full UUID on mobile
+            idEl.addEventListener('click', function() {
+                if (this.dataset.expanded === 'false') {
+                    this.textContent = `ID: ${this.dataset.fullId}`;
+                    this.dataset.expanded = 'true';
+                    this.classList.add('expanded');
+                } else {
+                    const isMobile = window.innerWidth <= 768;
+                    this.textContent = `ID: ${isMobile ? this.dataset.shortId : this.dataset.fullId}`;
+                    this.dataset.expanded = 'false';
+                    this.classList.remove('expanded');
+                }
+            });
 
             info.appendChild(nameEl);
             info.appendChild(metaEl);
