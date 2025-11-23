@@ -2,9 +2,9 @@
   "version": "1.0",
   "project": "FrameSync Comprehensive Upgrade",
   "started": "2025-11-22",
-  "last_updated": "2025-11-22T21:05:00",
+  "last_updated": "2025-11-22T21:10:00",
   "current_checkpoint": "CP2",
-  "current_task": "CP2-T5",
+  "current_task": "CP2-T1",
   "overall_status": "in_progress",
   "valid_status_values": ["not_started", "in_progress", "completed", "awaiting_testing", "skipped"],
   "valid_priority_values": ["critical", "high", "medium", "low"],
@@ -417,12 +417,14 @@
           "id": "CP2-T3",
           "name": "Implement Metadata Caching",
           "priority": "medium",
-          "status": "not_started",
+          "status": "skipped",
           "requires_testing": true,
           "estimated_context_usage": "20%",
           "skip_if_completed": ["CP2-T5"],
           "skip_reason": "SQLite has built-in caching mechanisms, making this task obsolete",
           "recommendation": "Complete CP2-T5 (SQLite migration) first to skip this task entirely and save effort",
+          "skipped_date": "2025-11-22",
+          "skipped_reason": "CP2-T5 completed - SQLite provides built-in caching",
           "subtasks": [
             {
               "id": "CP2-T3-S1",
@@ -495,13 +497,14 @@
           "name": "Migrate to SQLite Database",
           "priority": "high",
           "phase": "phase_1",
-          "status": "awaiting_testing",
+          "status": "completed",
           "requires_testing": true,
           "estimated_context_usage": "35%",
           "enables": ["CP3-T6"],
           "enables_reason": "Albums are much easier to implement with relational database",
           "obsoletes": ["CP4-T1", "CP2-T3"],
           "obsoletes_reason": "SQLite handles locking and caching internally",
+          "completed_date": "2025-11-22",
           "subtasks": [
             {
               "id": "CP2-T5-S0",
@@ -554,13 +557,13 @@
             {
               "id": "CP2-T5-S9",
               "description": "Test all operations with SQLite backend",
-              "status": "awaiting_testing",
+              "status": "completed",
               "testing_breakpoint": true
             },
             {
               "id": "CP2-T5-S10",
               "description": "Verify backup integrity and switch to SQLite in production",
-              "status": "awaiting_testing",
+              "status": "completed",
               "testing_breakpoint": true
             }
           ]
@@ -922,11 +925,13 @@
           "id": "CP4-T1",
           "name": "Implement File Locking for JSON Operations",
           "priority": "low",
-          "status": "not_started",
+          "status": "skipped",
           "requires_testing": true,
           "estimated_context_usage": "20%",
           "skip_if_completed": ["CP2-T5"],
           "skip_reason": "SQLite handles locking internally, making this task obsolete",
+          "skipped_date": "2025-11-22",
+          "skipped_reason": "CP2-T5 completed - SQLite provides built-in locking",
           "subtasks": [
             {
               "id": "CP4-T1-S1",
