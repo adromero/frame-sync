@@ -2,6 +2,8 @@
 import os
 import sys
 import subprocess
+import logging
+import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -10,6 +12,17 @@ import json
 import random
 from PIL import Image
 import database as db
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('framesync.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -27,6 +40,50 @@ CORS(app)
 
 # Global variable to track current image (temporary state, not persisted)
 current_image_state = None
+
+# Error response helpers
+def error_response(message, code=None, status_code=400):
+    """
+    Create a standardized error response.
+
+    Args:
+        message: Human-readable error message
+        code: Optional error code for programmatic handling
+        status_code: HTTP status code (default 400)
+
+    Returns:
+        Flask response tuple (json, status_code)
+    """
+    response = {
+        'success': False,
+        'error': {
+            'message': message
+        }
+    }
+    if code:
+        response['error']['code'] = code
+
+    logger.warning(f"Error response ({status_code}): {message}")
+    return jsonify(response), status_code
+
+def success_response(data=None, message=None):
+    """
+    Create a standardized success response.
+
+    Args:
+        data: Response data (optional)
+        message: Success message (optional)
+
+    Returns:
+        Flask response
+    """
+    response = {'success': True}
+    if data is not None:
+        response['data'] = data
+    if message:
+        response['message'] = message
+
+    return jsonify(response)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -49,8 +106,13 @@ def validate_image_file(filepath):
             img.load()
 
         return True, None
-    except Exception as e:
+    except (IOError, OSError, Image.UnidentifiedImageError) as e:
         error_msg = f"Invalid image file: {str(e)}"
+        logger.warning(f"Image validation failed for {filepath}: {e}")
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error validating image: {str(e)}"
+        logger.error(f"Unexpected error validating image {filepath}: {e}", exc_info=True)
         return False, error_msg
 
 def generate_thumbnail(filename):
@@ -84,8 +146,13 @@ def generate_thumbnail(filename):
             img.save(thumb_path, 'JPEG', quality=85, optimize=True)
 
         return True, None
-    except Exception as e:
+    except (IOError, OSError) as e:
         error_msg = f"Failed to generate thumbnail: {str(e)}"
+        logger.error(f"Thumbnail generation failed for {filename}: {e}")
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error generating thumbnail: {str(e)}"
+        logger.error(f"Unexpected error generating thumbnail for {filename}: {e}", exc_info=True)
         return False, error_msg
 
 def add_image_metadata(filename, uploader_ip, allowed_devices=None):
@@ -101,8 +168,8 @@ def add_image_metadata(filename, uploader_ip, allowed_devices=None):
     try:
         with Image.open(filepath) as img:
             width, height = img.size
-    except:
-        pass
+    except (IOError, OSError) as e:
+        logger.warning(f"Could not read image dimensions for {filename}: {e}")
 
     # Detect MIME type
     mime_type = None
@@ -363,23 +430,22 @@ def set_user_name_endpoint():
 @app.route('/api/server-info')
 def server_info():
     """API endpoint to get server network information"""
-    import socket
-    import subprocess
-
     # Get local IP
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-    except:
+    except (OSError, socket.error) as e:
+        logger.warning(f"Could not detect local IP: {e}")
         local_ip = "Unable to detect"
 
     # Get Tailscale IP
     try:
         result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True, timeout=2)
         tailscale_ip = result.stdout.strip() if result.returncode == 0 else "Not available"
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.warning(f"Could not detect Tailscale IP: {e}")
         tailscale_ip = "Not available"
 
     return jsonify({
@@ -391,89 +457,124 @@ def server_info():
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """API endpoint to handle image uploads"""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+    try:
+        if 'file' not in request.files:
+            return error_response('No file provided', 'NO_FILE', 400)
 
-    file = request.files['file']
+        file = request.files['file']
 
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+        if file.filename == '':
+            return error_response('No file selected', 'EMPTY_FILENAME', 400)
 
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'File type not allowed. Use PNG, JPG, GIF, or BMP'}), 400
+        if not allowed_file(file.filename):
+            return error_response(
+                'File type not allowed. Use PNG, JPG, GIF, or BMP',
+                'INVALID_FILE_TYPE',
+                400
+            )
 
-    filename = secure_filename(file.filename)
-    # Add timestamp to avoid conflicts
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    name, ext = os.path.splitext(filename)
-    filename = f"{name}_{timestamp}{ext}"
+        filename = secure_filename(file.filename)
+        # Add timestamp to avoid conflicts
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        name, ext = os.path.splitext(filename)
+        filename = f"{name}_{timestamp}{ext}"
 
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-    # Validate that the file is actually a valid image
-    is_valid, error_msg = validate_image_file(filepath)
-    if not is_valid:
-        # Remove the invalid file
-        os.remove(filepath)
-        return jsonify({'error': error_msg}), 400
+        # Validate that the file is actually a valid image
+        is_valid, error_msg = validate_image_file(filepath)
+        if not is_valid:
+            # Remove the invalid file
+            try:
+                os.remove(filepath)
+            except OSError as e:
+                logger.error(f"Failed to remove invalid file {filepath}: {e}")
+            return error_response(error_msg, 'INVALID_IMAGE', 400)
 
-    # Generate thumbnail
-    thumb_success, thumb_error = generate_thumbnail(filename)
-    if not thumb_success:
-        # Log the error but don't fail the upload
-        print(f"Warning: Failed to generate thumbnail for {filename}: {thumb_error}")
+        # Generate thumbnail
+        thumb_success, thumb_error = generate_thumbnail(filename)
+        if not thumb_success:
+            # Log the error but don't fail the upload
+            logger.warning(f"Failed to generate thumbnail for {filename}: {thumb_error}")
 
-    # Get uploader's IP address
-    uploader_ip = request.remote_addr
-    if request.headers.get('X-Forwarded-For'):
-        # If behind a proxy, get the real IP
-        uploader_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+        # Get uploader's IP address
+        uploader_ip = request.remote_addr
+        if request.headers.get('X-Forwarded-For'):
+            # If behind a proxy, get the real IP
+            uploader_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
 
-    # Get allowed devices from form data
-    allowed_devices = []
-    if 'allowed_devices' in request.form:
-        try:
-            allowed_devices = json.loads(request.form['allowed_devices'])
-        except json.JSONDecodeError:
-            pass  # If parsing fails, just use empty list
+        # Get allowed devices from form data
+        allowed_devices = []
+        if 'allowed_devices' in request.form:
+            try:
+                allowed_devices = json.loads(request.form['allowed_devices'])
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse allowed_devices JSON: {e}")
+                # If parsing fails, just use empty list
 
-    # Store metadata with allowed devices
-    add_image_metadata(filename, uploader_ip, allowed_devices)
+        # Store metadata with allowed devices
+        add_image_metadata(filename, uploader_ip, allowed_devices)
 
-    return jsonify({
-        'success': True,
-        'filename': filename,
-        'message': 'Image uploaded successfully',
-        'uploader_ip': uploader_ip
-    })
+        logger.info(f"Image uploaded successfully: {filename} by {uploader_ip}")
+
+        return success_response(
+            data={
+                'filename': filename,
+                'uploader_ip': uploader_ip
+            },
+            message='Image uploaded successfully'
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error during file upload: {e}", exc_info=True)
+        return error_response(
+            'An unexpected error occurred during upload',
+            'UPLOAD_ERROR',
+            500
+        )
 
 @app.route('/api/delete/<filename>', methods=['DELETE'])
 def delete_image(filename):
     """API endpoint to delete an image"""
-    filename = secure_filename(filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-    if not os.path.exists(filepath):
-        return jsonify({'error': 'File not found'}), 404
-
     try:
+        filename = secure_filename(filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+        if not os.path.exists(filepath):
+            return error_response('File not found', 'FILE_NOT_FOUND', 404)
+
         # Remove the image file
         os.remove(filepath)
 
         # Remove thumbnail if it exists
         thumb_path = os.path.join(THUMBNAILS_FOLDER, filename)
         if os.path.exists(thumb_path):
-            os.remove(thumb_path)
+            try:
+                os.remove(thumb_path)
+            except OSError as e:
+                logger.warning(f"Failed to remove thumbnail {thumb_path}: {e}")
 
         # Remove metadata
         remove_image_metadata(filename)
+
         # If this was the current image, clear it
         if get_current_image() == filename:
             set_current_image(None)
-        return jsonify({'success': True, 'message': 'Image deleted'})
+
+        logger.info(f"Image deleted successfully: {filename}")
+        return success_response(message='Image deleted successfully')
+
+    except OSError as e:
+        logger.error(f"Failed to delete image {filename}: {e}")
+        return error_response(f'Failed to delete file: {str(e)}', 'DELETE_ERROR', 500)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Unexpected error deleting image {filename}: {e}", exc_info=True)
+        return error_response(
+            'An unexpected error occurred during deletion',
+            'DELETE_ERROR',
+            500
+        )
 
 @app.route('/api/display/<filename>', methods=['POST'])
 def display_image(filename):

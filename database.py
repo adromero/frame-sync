@@ -6,10 +6,14 @@ SQLite database operations and connection management
 import sqlite3
 import json
 import os
+import logging
 from contextlib import contextmanager
 from typing import Optional, Dict, List, Any, Tuple
 from datetime import datetime
 import threading
+
+# Configure module logger
+logger = logging.getLogger(__name__)
 
 # Database configuration
 DB_FILE = os.path.join(os.path.dirname(__file__), 'framesync.db')
@@ -40,8 +44,13 @@ def get_cursor():
     try:
         yield cursor
         conn.commit()
+    except sqlite3.Error as e:
+        conn.rollback()
+        logger.error(f"Database error: {e}", exc_info=True)
+        raise e
     except Exception as e:
         conn.rollback()
+        logger.error(f"Unexpected error in database operation: {e}", exc_info=True)
         raise e
     finally:
         cursor.close()

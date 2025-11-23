@@ -1001,8 +1001,9 @@
                                 resolve(data);
                             } else {
                                 progressContainer.style.display = 'none';
-                                showMessage(`Error: ${data.error}`, 'error');
-                                reject(new Error(data.error));
+                                const errorMsg = getErrorMessage(data);
+                                showMessage(`Error: ${errorMsg}`, 'error');
+                                reject(new Error(errorMsg));
                             }
                         } catch (error) {
                             progressContainer.style.display = 'none';
@@ -1094,7 +1095,8 @@
                     loadImages(); // Refresh to show new name
                     loadUsers(); // Refresh user list
                 } else {
-                    showMessage(`Error: ${data.error}`, 'error');
+                    const errorMsg = getErrorMessage(data);
+                    showMessage(`Error: ${errorMsg}`, 'error');
                 }
             } catch (error) {
                 showMessage(`Failed to save name: ${error.message}`, 'error');
@@ -1165,6 +1167,20 @@
             setTimeout(() => {
                 message.style.display = 'none';
             }, 5000);
+        }
+
+        // Helper function to extract error message from standardized API response
+        function getErrorMessage(response) {
+            // Handle new standardized format: {success: false, error: {message, code}}
+            if (response && response.error) {
+                if (typeof response.error === 'object' && response.error.message) {
+                    return response.error.message;
+                }
+                // Fallback for old format where error is a string
+                return response.error;
+            }
+            // Fallback for unknown format
+            return 'An unknown error occurred';
         }
 
         async function loadImages() {
