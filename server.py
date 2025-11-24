@@ -43,10 +43,11 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 CORS(app)
 
 # Configure rate limiting
+# Generous limits for family/Tailscale use - mainly to prevent accidental abuse
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["10000 per day", "1000 per hour"],
     storage_uri="memory://",
     headers_enabled=True  # Add rate limit headers to responses
 )
@@ -230,6 +231,108 @@ def calculate_storage_usage():
             'quota_available_bytes': STORAGE_QUOTA
         }
 
+def extract_exif_data(filepath):
+    """Extract EXIF metadata from an image file using Pillow.
+
+    Returns dict with EXIF fields, or empty dict if no EXIF data available.
+    """
+    from PIL.ExifTags import TAGS, GPSTAGS
+
+    exif_data = {
+        'date_taken': None,
+        'camera_make': None,
+        'camera_model': None,
+        'gps_latitude': None,
+        'gps_longitude': None,
+        'gps_altitude': None,
+        'orientation': None,
+        'exif_json': '{}'
+    }
+
+    try:
+        with Image.open(filepath) as img:
+            exif = img.getexif()
+
+            if not exif:
+                return exif_data
+
+            # Additional EXIF data to store as JSON
+            additional_exif = {}
+
+            # Try to get GPS IFD (Image File Directory) if available
+            gps_ifd = exif.get_ifd(0x8825)  # 0x8825 = GPSInfo tag
+
+            # Process EXIF tags
+            for tag_id, value in exif.items():
+                tag = TAGS.get(tag_id, tag_id)
+
+                # Extract specific fields we care about
+                if tag == 'DateTime' or tag == 'DateTimeOriginal':
+                    # Convert EXIF datetime format to ISO format
+                    # EXIF format: "2024:11:23 14:30:45"
+                    # ISO format: "2024-11-23T14:30:45"
+                    try:
+                        exif_data['date_taken'] = value.replace(':', '-', 2).replace(' ', 'T')
+                    except (AttributeError, ValueError):
+                        pass
+
+                elif tag == 'Make':
+                    exif_data['camera_make'] = str(value).strip()
+
+                elif tag == 'Model':
+                    exif_data['camera_model'] = str(value).strip()
+
+                elif tag == 'Orientation':
+                    exif_data['orientation'] = int(value)
+
+                # Store other interesting EXIF fields in JSON
+                elif tag in ['ExposureTime', 'FNumber', 'ISO', 'FocalLength', 'Flash', 'WhiteBalance', 'LensModel']:
+                    try:
+                        additional_exif[tag] = str(value)
+                    except:
+                        pass
+
+            # Parse GPS data from GPS IFD if available
+            if gps_ifd:
+                gps_info = {}
+                for gps_tag_id, gps_value in gps_ifd.items():
+                    gps_tag = GPSTAGS.get(gps_tag_id, gps_tag_id)
+                    gps_info[gps_tag] = gps_value
+
+                # Convert GPS coordinates to decimal degrees
+                if 'GPSLatitude' in gps_info and 'GPSLatitudeRef' in gps_info:
+                    lat = gps_info['GPSLatitude']
+                    lat_ref = gps_info['GPSLatitudeRef']
+                    if isinstance(lat, tuple) and len(lat) == 3:
+                        # Convert from degrees, minutes, seconds to decimal
+                        decimal_lat = float(lat[0]) + float(lat[1])/60 + float(lat[2])/3600
+                        if lat_ref == 'S':
+                            decimal_lat = -decimal_lat
+                        exif_data['gps_latitude'] = decimal_lat
+
+                if 'GPSLongitude' in gps_info and 'GPSLongitudeRef' in gps_info:
+                    lon = gps_info['GPSLongitude']
+                    lon_ref = gps_info['GPSLongitudeRef']
+                    if isinstance(lon, tuple) and len(lon) == 3:
+                        decimal_lon = float(lon[0]) + float(lon[1])/60 + float(lon[2])/3600
+                        if lon_ref == 'W':
+                            decimal_lon = -decimal_lon
+                        exif_data['gps_longitude'] = decimal_lon
+
+                if 'GPSAltitude' in gps_info:
+                    alt = gps_info['GPSAltitude']
+                    if isinstance(alt, (int, float)):
+                        exif_data['gps_altitude'] = float(alt)
+
+            # Store additional EXIF as JSON
+            if additional_exif:
+                exif_data['exif_json'] = json.dumps(additional_exif)
+
+    except Exception as e:
+        logger.warning(f"Could not extract EXIF data from {filepath}: {e}")
+
+    return exif_data
+
 def add_image_metadata(filename, uploader_ip, allowed_devices=None):
     """Add metadata for a newly uploaded image"""
     allowed_devices = allowed_devices if allowed_devices is not None else []
@@ -253,11 +356,24 @@ def add_image_metadata(filename, uploader_ip, allowed_devices=None):
                 'gif': 'image/gif', 'bmp': 'image/bmp'}
     mime_type = mime_map.get(ext)
 
+    # Extract EXIF data
+    exif_data = extract_exif_data(filepath)
+
     # Ensure user exists (create if needed) to satisfy foreign key constraint
     db.create_or_update_user(uploader_ip, uploader_ip)
 
-    # Create image record
-    image = db.create_image(filename, uploader_ip, file_size, mime_type, width, height)
+    # Create image record with EXIF data
+    image = db.create_image(
+        filename, uploader_ip, file_size, mime_type, width, height,
+        date_taken=exif_data['date_taken'],
+        camera_make=exif_data['camera_make'],
+        camera_model=exif_data['camera_model'],
+        gps_latitude=exif_data['gps_latitude'],
+        gps_longitude=exif_data['gps_longitude'],
+        gps_altitude=exif_data['gps_altitude'],
+        orientation=exif_data['orientation'],
+        exif_json=exif_data['exif_json']
+    )
 
     # Set device assignments
     if allowed_devices:
@@ -283,7 +399,7 @@ def get_all_users():
     users = db.get_all_users()
     return [{'ip': user['ip_address'], 'name': user['name']} for user in users]
 
-def get_image_list(filter_user=None, page=None, limit=None, search=None, date_from=None, date_to=None, device_id=None):
+def get_image_list(filter_user=None, page=None, limit=None, search=None, date_from=None, date_to=None, device_id=None, sort_by='upload_time'):
     """Get list of uploaded images with metadata
 
     Args:
@@ -294,6 +410,7 @@ def get_image_list(filter_user=None, page=None, limit=None, search=None, date_fr
         date_from: Optional start date filter (YYYY-MM-DD format)
         date_to: Optional end date filter (YYYY-MM-DD format)
         device_id: Optional device ID to filter images assigned to specific device
+        sort_by: Sort order - 'upload_time' or 'date_taken' (default: upload_time)
 
     Returns:
         If pagination params provided: dict with {'images': [...], 'total': N, 'page': N, 'pages': N}
@@ -301,8 +418,8 @@ def get_image_list(filter_user=None, page=None, limit=None, search=None, date_fr
     """
     from datetime import datetime
 
-    # Get all images from database
-    all_images = db.get_all_images()
+    # Get all images from database with sorting
+    all_images = db.get_all_images(sort_by=sort_by)
 
     # Parse date filters if provided
     date_from_dt = None
@@ -349,13 +466,31 @@ def get_image_list(filter_user=None, page=None, limit=None, search=None, date_fr
         if device_id and device_id not in allowed_devices:
             continue
 
+        # Parse additional EXIF JSON
+        exif_additional = {}
+        try:
+            exif_additional = json.loads(img.get('exif_json', '{}'))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
         images.append({
             'filename': img['filename'],
             'size': img['file_size'] or 0,
             'uploaded': img['upload_time'],
             'uploader_ip': img['uploader_ip'],
             'uploader_name': get_user_name(img['uploader_ip']),
-            'allowed_devices': allowed_devices
+            'allowed_devices': allowed_devices,
+            # EXIF metadata
+            'exif': {
+                'date_taken': img.get('date_taken'),
+                'camera_make': img.get('camera_make'),
+                'camera_model': img.get('camera_model'),
+                'gps_latitude': img.get('gps_latitude'),
+                'gps_longitude': img.get('gps_longitude'),
+                'gps_altitude': img.get('gps_altitude'),
+                'orientation': img.get('orientation'),
+                'additional': exif_additional
+            }
         })
 
     # If pagination params not provided, return simple list (backward compatibility)
@@ -491,6 +626,7 @@ def list_images():
     date_from = request.args.get('date_from')  # Optional start date (YYYY-MM-DD)
     date_to = request.args.get('date_to')  # Optional end date (YYYY-MM-DD)
     device_id = request.args.get('device')  # Optional filter by device ID
+    sort_by = request.args.get('sort_by', 'upload_time')  # Sort by upload_time or date_taken
 
     # Get image list (with or without pagination)
     result = get_image_list(
@@ -500,7 +636,8 @@ def list_images():
         search=search,
         date_from=date_from,
         date_to=date_to,
-        device_id=device_id
+        device_id=device_id,
+        sort_by=sort_by
     )
     current = get_current_image()
 

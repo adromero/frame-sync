@@ -31,6 +31,11 @@ A web-based photo frame server that can serve images to multiple displays on you
 - 📝 Comprehensive error handling and logging
 - 🔄 Image rotation - rotate images 90°, 180°, or 270° directly in the web interface
 - 🗂️ Bulk operations - select and manage multiple images at once (delete, change devices)
+- 📸 EXIF metadata extraction and display:
+  - Date taken, camera make/model
+  - GPS location with Google Maps integration
+  - Camera settings (exposure, f-stop, ISO, focal length)
+  - Sort by date taken or upload date
 
 ## Hardware Requirements
 
@@ -139,9 +144,23 @@ Easily find images using the powerful search and filter tools:
 2. **Filter by date range**: Select start and/or end dates to view images from specific time periods
 3. **Filter by device**: Choose a device from the dropdown to see only images assigned to that display
 4. **Filter by user**: Use the "Owner" dropdown to filter by uploader (all, my photos, or specific users)
-5. **Combine filters**: All filters work together - search for a filename on a specific device within a date range
-6. **Clear filters**: Click "Clear Filters" to reset all search and filter options at once
-7. All filtering respects pagination and updates the image count automatically
+5. **Sort images**: Choose between "Upload Date" or "Date Taken" (uses EXIF data when available)
+6. **Combine filters**: All filters work together - search for a filename on a specific device within a date range
+7. **Clear filters**: Click "Clear Filters" to reset all search and filter options at once
+8. All filtering respects pagination and updates the image count automatically
+
+#### Viewing EXIF Metadata
+
+Photos uploaded from cameras and smartphones contain EXIF metadata:
+
+1. Click on any image to open the detail modal
+2. If the image has EXIF data, you'll see a **Photo Information** section showing:
+   - **📅 Date Taken**: When the photo was captured (if available)
+   - **📷 Camera**: Camera make and model (e.g., "Apple iPhone 16 Pro Max")
+   - **📍 Location**: GPS coordinates with a clickable link to view on Google Maps
+   - **⚙️ Settings**: Camera settings like exposure time, f-stop, ISO, and focal length
+3. Images without EXIF data (screenshots, edited photos) won't show this section
+4. Use the "Sort by Date Taken" option to organize photos by when they were captured rather than when they were uploaded
 
 #### Bulk Operations
 
@@ -188,6 +207,9 @@ Connect any display device to fetch images via the HTTP API. See [multi-device-i
 frame-sync/
 ├── server.py                 # Flask web server with multi-user and multi-device support
 ├── database.py               # SQLite database operations
+├── db_schema.sql             # Database schema with EXIF fields
+├── migrate_add_exif.py       # Database migration for EXIF columns
+├── backfill_exif.py          # Extract EXIF from existing images
 ├── display_image.py          # Display image on e-paper (optional)
 ├── rotate_image.py           # Hourly rotation logic (optional)
 ├── templates/
@@ -211,14 +233,13 @@ frame-sync/
 ### Server Configuration
 
 Edit these settings in `server.py`:
-- **Port**: Default is 5000 (line 574-576)
-- **Max file size**: 16MB (line 30)
-- **Allowed file types**: PNG, JPG, JPEG, GIF, BMP (line 29)
-- **Storage quota**: 5GB default (line 32)
+- **Port**: Default is 5000
+- **Max file size**: 16MB (line 33)
+- **Allowed file types**: PNG, JPG, JPEG, GIF, BMP (line 32)
+- **Storage quota**: 5GB default (line 35)
 - **Rate limits**:
-  - Upload endpoint: 10 per minute per IP
-  - API endpoints: 60 per minute per IP
-  - Global default: 200 per day, 50 per hour
+  - Global default: 10000 per day, 1000 per hour (line 50)
+  - Designed for family/Tailscale use with generous limits
 
 ### HTTPS/SSL Configuration
 

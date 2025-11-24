@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS images (
     mime_type TEXT,                   -- e.g., "image/jpeg"
     width INTEGER,                    -- Image width in pixels
     height INTEGER,                   -- Image height in pixels
+    -- EXIF metadata fields
+    date_taken TEXT,                  -- Date/time photo was taken (from EXIF)
+    camera_make TEXT,                 -- Camera manufacturer
+    camera_model TEXT,                -- Camera model
+    gps_latitude REAL,                -- GPS latitude
+    gps_longitude REAL,               -- GPS longitude
+    gps_altitude REAL,                -- GPS altitude in meters
+    orientation INTEGER,              -- EXIF orientation (1-8)
+    exif_json TEXT DEFAULT '{}',      -- Additional EXIF data as JSON blob
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (uploader_ip) REFERENCES users(ip_address) ON DELETE SET NULL
 );
@@ -53,6 +62,7 @@ CREATE TABLE IF NOT EXISTS image_device_assignments (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_images_uploader ON images(uploader_ip);
 CREATE INDEX IF NOT EXISTS idx_images_upload_time ON images(upload_time);
+CREATE INDEX IF NOT EXISTS idx_images_date_taken ON images(date_taken);
 CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(device_id);
 CREATE INDEX IF NOT EXISTS idx_device_assignments_image ON image_device_assignments(image_id);
 CREATE INDEX IF NOT EXISTS idx_device_assignments_device ON image_device_assignments(device_id);

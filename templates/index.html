@@ -1013,6 +1013,13 @@
                             <option value="all">All Devices</option>
                         </select>
                     </div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <label for="sortBySelect" style="margin: 0;">Sort:</label>
+                        <select id="sortBySelect" class="filter-select">
+                            <option value="upload_time">Upload Date</option>
+                            <option value="date_taken">Date Taken</option>
+                        </select>
+                    </div>
                     <button class="btn btn-small" id="clearFiltersBtn" style="background: linear-gradient(135deg, #999 0%, #777 100%); white-space: nowrap;">Clear Filters</button>
                 </div>
             </div>
@@ -1064,6 +1071,18 @@
                 <h3 id="modalImageName"></h3>
                 <p id="modalImageMeta"></p>
                 <p id="modalImageUploader"></p>
+
+                <!-- EXIF metadata section -->
+                <div id="exifSection" style="margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 8px; display: none;">
+                    <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">Photo Information</h4>
+                    <div style="font-size: 13px; color: #555; line-height: 1.8;">
+                        <div id="exifDateTaken"></div>
+                        <div id="exifCamera"></div>
+                        <div id="exifLocation"></div>
+                        <div id="exifDetails"></div>
+                    </div>
+                </div>
+
                 <div style="margin: 15px 0;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">Allowed Devices:</label>
                     <div id="modalDevicesList" class="modal-devices-list">
@@ -1109,6 +1128,7 @@
         const userFilter = document.getElementById('userFilter');
         const searchInput = document.getElementById('searchInput');
         const deviceFilter = document.getElementById('deviceFilter');
+        const sortBySelect = document.getElementById('sortBySelect');
         const dateFromInput = document.getElementById('dateFromInput');
         const dateToInput = document.getElementById('dateToInput');
         const clearFiltersBtn = document.getElementById('clearFiltersBtn');
@@ -1428,10 +1448,84 @@
             const isMyImage = image.uploader_ip === currentUserIp;
             modalImageUploader.textContent = `Uploaded by: ${image.uploader_name}${isMyImage ? ' (You)' : ''}`;
 
+            // Display EXIF data if available
+            displayExifData(image.exif);
+
             // Render device checkboxes
             renderDeviceCheckboxes(image.allowed_devices || []);
 
             imageModal.classList.add('active');
+        }
+
+        function displayExifData(exif) {
+            const exifSection = document.getElementById('exifSection');
+            const exifDateTaken = document.getElementById('exifDateTaken');
+            const exifCamera = document.getElementById('exifCamera');
+            const exifLocation = document.getElementById('exifLocation');
+            const exifDetails = document.getElementById('exifDetails');
+
+            // Clear previous data
+            exifDateTaken.innerHTML = '';
+            exifCamera.innerHTML = '';
+            exifLocation.innerHTML = '';
+            exifDetails.innerHTML = '';
+
+            // Check if we have any EXIF data
+            if (!exif || (!exif.date_taken && !exif.camera_make && !exif.camera_model &&
+                         !exif.gps_latitude && !exif.gps_longitude &&
+                         (!exif.additional || Object.keys(exif.additional).length === 0))) {
+                exifSection.style.display = 'none';
+                return;
+            }
+
+            // Show the section
+            exifSection.style.display = 'block';
+
+            // Date taken
+            if (exif.date_taken) {
+                const dateTaken = new Date(exif.date_taken);
+                exifDateTaken.innerHTML = `<strong>📅 Date Taken:</strong> ${dateTaken.toLocaleDateString()} ${dateTaken.toLocaleTimeString()}`;
+            }
+
+            // Camera info
+            if (exif.camera_make || exif.camera_model) {
+                let cameraText = '<strong>📷 Camera:</strong> ';
+                if (exif.camera_make && exif.camera_model) {
+                    cameraText += `${exif.camera_make} ${exif.camera_model}`;
+                } else {
+                    cameraText += exif.camera_make || exif.camera_model;
+                }
+                exifCamera.innerHTML = cameraText;
+            }
+
+            // GPS location
+            if (exif.gps_latitude && exif.gps_longitude) {
+                const lat = exif.gps_latitude.toFixed(6);
+                const lon = exif.gps_longitude.toFixed(6);
+                let locationText = `<strong>📍 Location:</strong> ${lat}, ${lon}`;
+
+                // Add Google Maps link
+                const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+                locationText += ` <a href="${mapsUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">[View on Map]</a>`;
+
+                if (exif.gps_altitude) {
+                    locationText += `<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Altitude: ${Math.round(exif.gps_altitude)}m`;
+                }
+                exifLocation.innerHTML = locationText;
+            }
+
+            // Additional EXIF details
+            if (exif.additional && Object.keys(exif.additional).length > 0) {
+                const details = [];
+                if (exif.additional.ExposureTime) details.push(`Exposure: ${exif.additional.ExposureTime}`);
+                if (exif.additional.FNumber) details.push(`f/${exif.additional.FNumber}`);
+                if (exif.additional.ISO) details.push(`ISO ${exif.additional.ISO}`);
+                if (exif.additional.FocalLength) details.push(`${exif.additional.FocalLength}mm`);
+
+                if (details.length > 0) {
+                    exifDetails.innerHTML = `<strong>⚙️ Settings:</strong> ${details.join(' • ')}`;
+                }
+            }
         }
 
         function closeModal() {
@@ -1513,6 +1607,7 @@
                 const deviceFilterValue = deviceFilter.value;
                 const dateFromValue = dateFromInput.value;
                 const dateToValue = dateToInput.value;
+                const sortByValue = sortBySelect.value;
 
                 let url = `/api/images?page=${currentPage}&limit=${itemsPerPage}`;
 
@@ -1539,6 +1634,11 @@
                 }
                 if (dateToValue) {
                     url += `&date_to=${encodeURIComponent(dateToValue)}`;
+                }
+
+                // Add sort order
+                if (sortByValue) {
+                    url += `&sort_by=${encodeURIComponent(sortByValue)}`;
                 }
 
                 const response = await fetch(url);
@@ -2557,6 +2657,11 @@
             loadImages();
         });
 
+        sortBySelect.addEventListener('change', () => {
+            currentPage = 1;  // Reset to first page when sort order changes
+            loadImages();
+        });
+
         dateFromInput.addEventListener('change', () => {
             currentPage = 1;  // Reset to first page when filter changes
             loadImages();
@@ -2571,6 +2676,7 @@
             // Clear all filters
             searchInput.value = '';
             deviceFilter.value = 'all';
+            sortBySelect.value = 'upload_time';
             dateFromInput.value = '';
             dateToInput.value = '';
             userFilter.value = 'all';

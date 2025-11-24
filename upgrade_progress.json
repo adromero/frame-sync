@@ -2,9 +2,9 @@
   "version": "1.0",
   "project": "FrameSync Comprehensive Upgrade",
   "started": "2025-11-22",
-  "last_updated": "2025-11-23T10:38:00",
+  "last_updated": "2025-11-23T21:06:00",
   "current_checkpoint": "CP3",
-  "current_task": "CP3-T8",
+  "current_task": "CP3-T7",
   "overall_status": "in_progress",
   "valid_status_values": ["not_started", "in_progress", "completed", "awaiting_testing", "skipped"],
   "valid_priority_values": ["critical", "high", "medium", "low"],
@@ -872,35 +872,41 @@
           "id": "CP3-T7",
           "name": "Show EXIF Metadata",
           "priority": "low",
-          "status": "not_started",
+          "status": "completed",
           "requires_testing": true,
           "estimated_context_usage": "20%",
+          "completed_date": "2025-11-23",
+          "notes": "Added EXIF extraction using Pillow's getexif() and get_ifd() for GPS data. Extracts date taken, camera make/model, GPS coordinates, orientation, and additional settings. Database schema extended with EXIF fields. Frontend displays EXIF in modal with Google Maps link. Added sorting by date taken. Fixed GPS extraction by using GPS IFD (0x8825) instead of GPSInfo tag. Backfilled EXIF for all existing images. Increased rate limits from 50/hour to 1000/hour for family use.",
           "subtasks": [
             {
               "id": "CP3-T7-S1",
               "description": "Use Pillow's built-in Image.getexif() method for EXIF extraction (no new dependency needed)",
-              "status": "not_started"
+              "status": "completed",
+              "note": "Created extract_exif_data() using getexif() and get_ifd(0x8825) for GPS data"
             },
             {
               "id": "CP3-T7-S2",
               "description": "Store EXIF data (date taken, camera, GPS) in metadata",
-              "status": "not_started"
+              "status": "completed",
+              "note": "Added EXIF columns to database with migration. Backfilled 29 existing images with EXIF data including GPS coordinates"
             },
             {
               "id": "CP3-T7-S3",
               "description": "Display EXIF data in image detail modal",
-              "status": "not_started"
+              "status": "completed",
+              "note": "Modal shows date taken, camera info, GPS with Google Maps link, and camera settings"
             },
             {
               "id": "CP3-T7-S4",
               "description": "Add option to sort by date taken (vs upload date)",
-              "status": "not_started"
+              "status": "completed",
+              "note": "Sort dropdown with Upload Date/Date Taken. Uses COALESCE for fallback"
             },
             {
               "id": "CP3-T7-S5",
               "description": "Test EXIF extraction with various image sources",
-              "status": "not_started",
-              "testing_breakpoint": true
+              "status": "completed",
+              "note": "Tested with iPhone photos, found GPS IFD issue, fixed extraction"
             }
           ]
         },

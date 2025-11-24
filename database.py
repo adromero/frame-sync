@@ -185,13 +185,25 @@ def delete_device(device_id: str) -> bool:
 
 def create_image(filename: str, uploader_ip: str, file_size: Optional[int] = None,
                 mime_type: Optional[str] = None, width: Optional[int] = None,
-                height: Optional[int] = None) -> Dict[str, Any]:
-    """Create a new image record."""
+                height: Optional[int] = None, date_taken: Optional[str] = None,
+                camera_make: Optional[str] = None, camera_model: Optional[str] = None,
+                gps_latitude: Optional[float] = None, gps_longitude: Optional[float] = None,
+                gps_altitude: Optional[float] = None, orientation: Optional[int] = None,
+                exif_json: Optional[str] = None) -> Dict[str, Any]:
+    """Create a new image record with optional EXIF data."""
     with get_cursor() as cursor:
         cursor.execute('''
-            INSERT INTO images (filename, uploader_ip, file_size, mime_type, width, height)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (filename, uploader_ip, file_size, mime_type, width, height))
+            INSERT INTO images (
+                filename, uploader_ip, file_size, mime_type, width, height,
+                date_taken, camera_make, camera_model,
+                gps_latitude, gps_longitude, gps_altitude,
+                orientation, exif_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (filename, uploader_ip, file_size, mime_type, width, height,
+              date_taken, camera_make, camera_model,
+              gps_latitude, gps_longitude, gps_altitude,
+              orientation, exif_json))
 
         image_id = cursor.lastrowid
         cursor.execute('SELECT * FROM images WHERE id = ?', (image_id,))
@@ -207,10 +219,26 @@ def get_image_by_filename(filename: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
-def get_all_images(limit: Optional[int] = None, offset: int = 0) -> List[Dict[str, Any]]:
-    """Get all images with optional pagination."""
+def get_all_images(limit: Optional[int] = None, offset: int = 0,
+                   sort_by: str = 'upload_time') -> List[Dict[str, Any]]:
+    """Get all images with optional pagination and sorting.
+
+    Args:
+        limit: Maximum number of images to return
+        offset: Number of images to skip
+        sort_by: Field to sort by ('upload_time' or 'date_taken')
+    """
     with get_cursor() as cursor:
-        query = 'SELECT * FROM images ORDER BY upload_time DESC'
+        # Validate sort_by to prevent SQL injection
+        if sort_by not in ['upload_time', 'date_taken']:
+            sort_by = 'upload_time'
+
+        # When sorting by date_taken, use COALESCE to fall back to upload_time for images without EXIF
+        if sort_by == 'date_taken':
+            query = 'SELECT * FROM images ORDER BY COALESCE(date_taken, upload_time) DESC'
+        else:
+            query = f'SELECT * FROM images ORDER BY {sort_by} DESC'
+
         params = []
 
         if limit is not None:
