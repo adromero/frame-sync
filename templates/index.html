@@ -2610,23 +2610,28 @@
             // Load server info for footer
             await loadServerInfo();
 
-            // Try to detect current user from existing images
+            // Try to detect current user from their IP address
             try {
                 const usersResponse = await fetch('/api/users');
                 const usersData = await usersResponse.json();
 
-                const imagesResponse = await fetch('/api/images');
-                const imagesData = await imagesResponse.json();
+                // Get the client's IP address from server-info (already loaded in footer)
+                const serverInfoResponse = await fetch('/api/server-info');
+                const serverInfo = await serverInfoResponse.json();
+                const clientIp = serverInfo.client_ip;
 
-                // If there's only one user and they have images, assume that's the current user
-                if (usersData.users.length === 1 && imagesData.images.length > 0) {
-                    const user = usersData.users[0];
-                    currentUserIp = user.ip;
-                    if (user.name !== user.ip) {
-                        currentUserName = user.name;
+                // Find the user matching the client's IP
+                const matchingUser = usersData.users.find(user => user.ip === clientIp);
+
+                if (matchingUser) {
+                    // User exists in database - they've uploaded before
+                    currentUserIp = matchingUser.ip;
+                    if (matchingUser.name !== matchingUser.ip) {
+                        currentUserName = matchingUser.name;
                     }
                     updateUserDisplay();
                 } else {
+                    // New user - hasn't uploaded yet
                     currentUserIpEl.textContent = 'Your identity will be shown after first upload';
                 }
             } catch (err) {

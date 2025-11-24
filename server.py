@@ -714,10 +714,16 @@ def server_info():
         logger.warning(f"Could not detect Tailscale IP: {e}")
         tailscale_ip = "Not available"
 
+    # Get client's IP address (for identity matching)
+    client_ip = request.remote_addr
+    if request.headers.get('X-Forwarded-For'):
+        client_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+
     return jsonify({
         'local_ip': local_ip,
         'tailscale_ip': tailscale_ip,
-        'port': 5000
+        'port': 5000,
+        'client_ip': client_ip
     })
 
 @app.route('/api/storage')
