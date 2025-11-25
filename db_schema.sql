@@ -82,3 +82,17 @@ FOR EACH ROW
 BEGIN
     UPDATE devices SET last_seen_at = datetime('now') WHERE id = NEW.id;
 END;
+
+-- Notifications table: Push notifications for remote devices
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    action TEXT DEFAULT 'display_image',
+    image_filename TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE
+);
+
+-- Index for efficient notification queries by device
+CREATE INDEX IF NOT EXISTS idx_notifications_device ON notifications(device_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);

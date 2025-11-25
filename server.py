@@ -909,7 +909,12 @@ def delete_image(filename):
 @app.route('/api/display/<filename>', methods=['POST'])
 @limiter.limit("60 per minute")
 def display_image(filename):
-    """API endpoint to display an image on the e-paper"""
+    """API endpoint to display an image on the e-paper.
+
+    This endpoint:
+    1. Displays the image on the locally-connected e-paper display
+    2. Creates notifications for all remote devices that have access to this image
+    """
     filename = secure_filename(filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
@@ -926,12 +931,39 @@ def display_image(filename):
             timeout=30
         )
 
-        if result.returncode == 0:
+        local_display_success = result.returncode == 0
+
+        if local_display_success:
             set_current_image(filename)
-            return jsonify({'success': True, 'message': 'Image displayed on e-paper'})
+
+        # Create notifications for all remote devices that have access to this image
+        # This allows remote clients to receive immediate updates
+        devices_with_access = db.get_devices_for_image(filename)
+        notifications_created = 0
+        for device in devices_with_access:
+            try:
+                db.create_notification(device['device_id'], 'display_image', filename)
+                notifications_created += 1
+            except Exception as e:
+                logger.warning(f"Failed to create notification for device {device['device_id']}: {e}")
+
+        if notifications_created > 0:
+            logger.info(f"Created {notifications_created} notifications for remote devices (image: {filename})")
+
+        if local_display_success:
+            return jsonify({
+                'success': True,
+                'message': 'Image displayed on e-paper',
+                'notifications_created': notifications_created
+            })
         else:
-            error_msg = result.stderr.strip() if result.stderr else 'Failed to display image'
-            return jsonify({'error': error_msg}), 500
+            # Local display failed, but notifications were still created
+            error_msg = result.stderr.strip() if result.stderr else 'Failed to display image locally'
+            return jsonify({
+                'error': error_msg,
+                'notifications_created': notifications_created,
+                'message': f'Local display failed, but {notifications_created} remote notifications created'
+            }), 500
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'Display operation timed out'}), 500
     except Exception as e:
@@ -1039,6 +1071,64 @@ def get_next_image_for_device(device_id):
         'image': next_image,
         'url': f"/uploads/{next_image['filename']}"
     })
+
+@app.route('/api/devices/<device_id>/notifications', methods=['GET'])
+@limiter.limit("120 per minute")
+def get_notifications(device_id):
+    """API endpoint to get pending notifications for a device.
+
+    Remote clients can poll this endpoint to check for updates.
+    Returns the oldest pending notification if any exist.
+    """
+    try:
+        # Update last seen timestamp
+        update_device_last_seen(device_id)
+
+        # Get pending notifications for this device
+        notifications = db.get_device_notifications(device_id)
+
+        if notifications:
+            # Return the oldest notification (first in queue)
+            notification = notifications[0]
+            return jsonify({
+                'has_update': True,
+                'notification_id': notification['id'],
+                'action': notification['action'],
+                'image_filename': notification['image_filename'],
+                'timestamp': notification['created_at'],
+                'pending_count': len(notifications)
+            })
+
+        return jsonify({'has_update': False})
+
+    except Exception as e:
+        logger.error(f"Error getting notifications for device {device_id}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/devices/<device_id>/notifications/<notification_id>', methods=['DELETE'])
+@limiter.limit("120 per minute")
+def clear_notification(device_id, notification_id):
+    """API endpoint to clear a notification after it has been processed.
+
+    Remote clients should call this after successfully handling a notification.
+    """
+    try:
+        # Verify the notification belongs to this device
+        notifications = db.get_device_notifications(device_id)
+        if not any(n['id'] == notification_id for n in notifications):
+            return jsonify({'error': 'Notification not found'}), 404
+
+        # Delete the notification
+        db.delete_notification(notification_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Notification cleared'
+        })
+
+    except Exception as e:
+        logger.error(f"Error clearing notification {notification_id}: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/images/<filename>/devices', methods=['POST'])
 @limiter.limit("60 per minute")

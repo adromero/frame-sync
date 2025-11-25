@@ -7,6 +7,7 @@ import sqlite3
 import json
 import os
 import logging
+import uuid
 from contextlib import contextmanager
 from typing import Optional, Dict, List, Any, Tuple
 from datetime import datetime
@@ -383,3 +384,112 @@ def get_database_stats() -> Dict[str, Any]:
             'db_size_bytes': db_size,
             'db_file': DB_FILE
         }
+
+
+# ============================================================================
+# NOTIFICATION OPERATIONS
+# ============================================================================
+
+def create_notification(device_id: str, action: str = 'display_image',
+                        image_filename: Optional[str] = None) -> str:
+    """Create a notification for a device.
+
+    Args:
+        device_id: The device to notify
+        action: The notification action type (default: 'display_image')
+        image_filename: Optional image filename for display actions
+
+    Returns:
+        The notification ID
+    """
+    notification_id = str(uuid.uuid4())
+    with get_cursor() as cursor:
+        cursor.execute('''
+            INSERT INTO notifications (id, device_id, action, image_filename, created_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+        ''', (notification_id, device_id, action, image_filename))
+
+    logger.info(f"Created notification {notification_id} for device {device_id}: {action}")
+    return notification_id
+
+
+def get_device_notifications(device_id: str) -> List[Dict[str, Any]]:
+    """Get pending notifications for a device.
+
+    Args:
+        device_id: The device to get notifications for
+
+    Returns:
+        List of notification dictionaries ordered by creation time
+    """
+    with get_cursor() as cursor:
+        cursor.execute('''
+            SELECT id, device_id, action, image_filename, created_at
+            FROM notifications
+            WHERE device_id = ?
+            ORDER BY created_at ASC
+        ''', (device_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def delete_notification(notification_id: str) -> bool:
+    """Delete a notification after it's been processed.
+
+    Args:
+        notification_id: The notification to delete
+
+    Returns:
+        True if a notification was deleted, False otherwise
+    """
+    with get_cursor() as cursor:
+        cursor.execute('DELETE FROM notifications WHERE id = ?', (notification_id,))
+        deleted = cursor.rowcount > 0
+
+    if deleted:
+        logger.info(f"Deleted notification {notification_id}")
+    return deleted
+
+
+def cleanup_old_notifications(hours: int = 24) -> int:
+    """Clean up old notifications that weren't processed.
+
+    Args:
+        hours: Delete notifications older than this many hours
+
+    Returns:
+        Number of notifications deleted
+    """
+    with get_cursor() as cursor:
+        cursor.execute('''
+            DELETE FROM notifications
+            WHERE created_at < datetime('now', '-' || ? || ' hours')
+        ''', (hours,))
+        deleted_count = cursor.rowcount
+
+    if deleted_count > 0:
+        logger.info(f"Cleaned up {deleted_count} old notifications")
+    return deleted_count
+
+
+def get_devices_for_image(filename: str) -> List[Dict[str, Any]]:
+    """Get all devices that have access to a specific image.
+
+    Args:
+        filename: The image filename
+
+    Returns:
+        List of device dictionaries that have access to the image
+    """
+    with get_cursor() as cursor:
+        cursor.execute('''
+            SELECT d.* FROM devices d
+            JOIN image_device_assignments ida ON d.device_id = ida.device_id
+            WHERE ida.image_id = (SELECT id FROM images WHERE filename = ?)
+        ''', (filename,))
+        devices = []
+        for row in cursor.fetchall():
+            device = dict(row)
+            device['metadata'] = json.loads(device.get('metadata_json', '{}'))
+            del device['metadata_json']
+            devices.append(device)
+        return devices
