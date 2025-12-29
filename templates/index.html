@@ -1094,6 +1094,7 @@
                     <button class="btn" id="modalRotateRightBtn" style="background: #0e7490;" title="Rotate 90° clockwise">↻ 90°</button>
                     <button class="btn" id="modalSaveDevicesBtn" style="background: #28a745;">Save Devices</button>
                     <button class="btn btn-success" id="modalDisplayBtn">Display on Frame</button>
+                    <button class="btn" id="modalDisplayPhotopainterBtn" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">Display on PhotoPainter</button>
                     <button class="btn btn-danger" id="modalDeleteBtn">Delete</button>
                 </div>
             </div>
@@ -1147,6 +1148,7 @@
         const modalImageMeta = document.getElementById('modalImageMeta');
         const modalImageUploader = document.getElementById('modalImageUploader');
         const modalDisplayBtn = document.getElementById('modalDisplayBtn');
+        const modalDisplayPhotopainterBtn = document.getElementById('modalDisplayPhotopainterBtn');
         const modalDeleteBtn = document.getElementById('modalDeleteBtn');
         const modalRotateLeftBtn = document.getElementById('modalRotateLeftBtn');
         const modalRotate180Btn = document.getElementById('modalRotate180Btn');
@@ -1542,6 +1544,14 @@
             closeModal();
         });
 
+        modalDisplayPhotopainterBtn.addEventListener('click', async () => {
+            if (!currentModalImage) return;
+            setButtonLoading(modalDisplayPhotopainterBtn, true);
+            await displayImageOnPhotopainter(currentModalImage.filename);
+            setButtonLoading(modalDisplayPhotopainterBtn, false);
+            closeModal();
+        });
+
         modalDeleteBtn.addEventListener('click', async () => {
             if (!currentModalImage) return;
             if (!confirm(`Delete ${currentModalImage.filename}?`)) return;
@@ -1836,6 +1846,25 @@
                 }
             } catch (error) {
                 showMessage(`Failed to display image: ${error.message}`, 'error');
+            }
+        }
+
+        async function displayImageOnPhotopainter(filename) {
+            try {
+                showMessage(`Sending ${filename} to PhotoPainter...`, 'success');
+                const response = await fetch(`/api/display-photopainter/${filename}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('Image sent to PhotoPainter! Display will refresh in ~30 seconds.', 'success');
+                } else {
+                    showMessage(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to send to PhotoPainter: ${error.message}`, 'error');
             }
         }
 

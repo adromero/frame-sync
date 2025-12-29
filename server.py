@@ -4,7 +4,7 @@ import sys
 import subprocess
 import logging
 import socket
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, redirect
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -12,8 +12,12 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import random
+import requests
 from PIL import Image
 import database as db
+
+# PhotoPainter configuration (set via environment variable)
+PHOTOPAINTER_URL = os.environ.get('PHOTOPAINTER_URL', '')
 
 # Configure logging
 logging.basicConfig(
@@ -969,6 +973,50 @@ def display_image(filename):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/display-photopainter/<filename>', methods=['POST'])
+@limiter.limit("10 per minute")
+def display_on_photopainter(filename):
+    """Push image to PhotoPainter via its REST API.
+
+    Configure PHOTOPAINTER_URL environment variable to enable this endpoint.
+    Example: export PHOTOPAINTER_URL=http://192.168.1.100
+    """
+    if not PHOTOPAINTER_URL:
+        return jsonify({'error': 'PhotoPainter not configured. Set PHOTOPAINTER_URL environment variable.'}), 503
+
+    filename = secure_filename(filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+
+    try:
+        with open(filepath, 'rb') as f:
+            image_data = f.read()
+
+        response = requests.post(
+            f"{PHOTOPAINTER_URL}/api/display-image",
+            data=image_data,
+            headers={"Content-Type": "image/jpeg"},
+            timeout=60  # PhotoPainter takes ~30-40s to refresh
+        )
+
+        if response.status_code == 200:
+            logger.info(f"Image sent to PhotoPainter: {filename}")
+            return jsonify({'success': True, 'message': 'Image sent to PhotoPainter'})
+        elif response.status_code == 503:
+            return jsonify({'error': 'PhotoPainter is busy updating display'}), 503
+        else:
+            return jsonify({'error': f'PhotoPainter returned {response.status_code}'}), 500
+
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'PhotoPainter timeout (display may still be updating)'}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Cannot reach PhotoPainter'}), 503
+    except Exception as e:
+        logger.error(f"Error sending to PhotoPainter: {e}")
+        return jsonify({'error': str(e)}), 500
+
 # Device Management API Endpoints
 
 @app.route('/api/devices/register', methods=['POST'])
@@ -1071,6 +1119,78 @@ def get_next_image_for_device(device_id):
         'image': next_image,
         'url': f"/uploads/{next_image['filename']}"
     })
+
+@app.route('/api/devices/<device_id>/next-converted')
+def get_next_converted_image(device_id):
+    """Get next random image for a device, converted for its display profile.
+
+    If the device has a 'display_profile' in its metadata, the image will be
+    converted to match that profile (e.g., resized and dithered for e-paper).
+    If no profile is set, redirects to the standard /next endpoint.
+    """
+    import image_converter
+
+    # Update last seen
+    update_device_last_seen(device_id)
+
+    # Check if device exists
+    device = get_device(device_id)
+    if not device:
+        return jsonify({'error': 'Device not found'}), 404
+
+    # Get display profile from metadata
+    metadata = device.get('metadata', {})
+    profile_name = metadata.get('display_profile') if isinstance(metadata, dict) else None
+
+    if not profile_name:
+        # No profile = redirect to standard endpoint
+        return redirect(f'/api/devices/{device_id}/next')
+
+    # Validate profile exists
+    if profile_name not in image_converter.DISPLAY_PROFILES:
+        return jsonify({
+            'error': f'Unknown display profile: {profile_name}',
+            'available_profiles': image_converter.get_available_profiles()
+        }), 400
+
+    # Get images for this device
+    images = get_images_for_device(device_id)
+    if not images:
+        return jsonify({'error': 'No images available for this device'}), 404
+
+    # Get current image from state
+    current = get_current_image()
+
+    # Filter out current image if possible
+    available = [img for img in images if img['filename'] != current]
+    if not available:
+        available = images
+
+    # Select random image
+    next_image = random.choice(available)
+    image_path = os.path.join(UPLOAD_FOLDER, next_image['filename'])
+
+    # Check if source image exists
+    if not os.path.exists(image_path):
+        return jsonify({'error': 'Image file not found'}), 404
+
+    try:
+        # Convert image using profile
+        converted = image_converter.convert_for_display(image_path, profile_name)
+
+        # Generate output filename
+        original_name = next_image['filename'].rsplit('.', 1)[0]
+        output_filename = f"{original_name}.bmp"
+
+        return send_file(
+            converted,
+            mimetype='image/bmp',
+            as_attachment=True,
+            download_name=output_filename
+        )
+    except Exception as e:
+        logger.error(f"Error converting image for device {device_id}: {e}", exc_info=True)
+        return jsonify({'error': f'Failed to convert image: {str(e)}'}), 500
 
 @app.route('/api/devices/<device_id>/notifications', methods=['GET'])
 @limiter.limit("120 per minute")
