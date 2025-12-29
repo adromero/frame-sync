@@ -4,6 +4,16 @@ import sys
 import subprocess
 import logging
 import socket
+
+# Load .env file if it exists
+_env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+if os.path.exists(_env_file):
+    with open(_env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key.strip(), value.strip())
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, redirect
 from flask_cors import CORS
 from flask_limiter import Limiter
